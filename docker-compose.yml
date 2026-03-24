@@ -4,9 +4,10 @@ services:
     container_name: miguel-api
     restart: always
     ports:
-      - "3002:3002"
+      # Expõe a 3002 para o servidor, mas conecta na 3000 dentro do container
+      - "3002:3000"
     environment:
-      PORT: 3002 # Força o Node.js a rodar na 3002
+      PORT: 3000 # Força o Node.js a rodar na 3000 lá dentro
       JWT_SECRET: "019283"
       ADMIN_USER: "miguelalves"
       ADMIN_PASS: "barbershopma"
@@ -17,8 +18,8 @@ services:
       - "traefik.http.routers.miguel.rule=Host(`api-miguel.unvgroup.tech`)"
       - "traefik.http.routers.miguel.entrypoints=websecure"
       - "traefik.http.routers.miguel.tls.certresolver=myresolver"
-      # 👇 ESTA É A LINHA QUE RESOLVE O SEU PROBLEMA:
-      - "traefik.http.services.miguel.loadbalancer.server.port=3002"
+      # Avisa o Traefik para rotear o tráfego para a porta 3000 interna
+      - "traefik.http.services.miguel.loadbalancer.server.port=3000"
 
 volumes:
   dados_miguel:
