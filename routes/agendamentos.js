@@ -203,6 +203,32 @@ function getBrasiliaTime() {
   };
 }
 
+// Rota para buscar os agendamentos principais (Miguel)
+router.get('/', verifyToken, async (req, res) => {
+  try {
+    const { data, data_inicio, data_fim, status } = req.query;
+    // Atenção aqui: buscando na tabela principal 'agendamentos'
+    let queryText = 'SELECT * FROM agendamentos'; 
+    const params = [];
+    const conditions = [];
+
+    if (data) { conditions.push(' data = ?'); params.push(data); }
+    if (data_inicio && data_fim) { conditions.push(' data BETWEEN ? AND ?'); params.push(data_inicio, data_fim);
+    } else if (data_inicio) { conditions.push(' data >= ?'); params.push(data_inicio);
+    } else if (data_fim) { conditions.push(' data <= ?'); params.push(data_fim); }
+    if (status) { conditions.push(' status = ?'); params.push(status); }
+    
+    if (conditions.length > 0) { queryText += ' WHERE' + conditions.join(' AND'); }
+    queryText += ' ORDER BY data DESC, hora DESC';
+
+    const result = await all(queryText, params);
+    res.json(result);
+  } catch (error) {
+    console.error('Erro em GET /agendamentos:', error);
+    res.status(500).json({ error: 'Erro ao buscar agendamentos' });
+  }
+});
+
 // Criar novo agendamento
 router.post('/', async (req, res) => {
   try {
