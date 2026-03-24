@@ -3,8 +3,8 @@ services:
     build: .
     container_name: miguel-api
     restart: always
-    expose:
-      - "3000"
+    ports:
+      - "3002:3000"
     environment:
       PORT: 3000
       JWT_SECRET: "019283"
@@ -12,12 +12,20 @@ services:
       ADMIN_PASS: "barbershopma"
     volumes:
       - dados_miguel:/app/database
+    networks:
+      - easypanel # Conecta o container na rede principal da Easypanel
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.miguel-api.rule=Host(`api-miguel.unvgroup.tech`)"
-      - "traefik.http.routers.miguel-api.entrypoints=websecure"
-      - "traefik.http.routers.miguel-api.tls.certresolver=myresolver"
-      - "traefik.http.services.miguel-api.loadbalancer.server.port=3000"
+      - "traefik.http.routers.miguel.rule=Host(`api-miguel.unvgroup.tech`)"
+      - "traefik.http.routers.miguel.entrypoints=websecure"
+      - "traefik.http.routers.miguel.tls.certresolver=myresolver"
+      - "traefik.http.services.miguel.loadbalancer.server.port=3000"
+      - "traefik.docker.network=easypanel" # Avisa o Traefik qual rede usar
 
 volumes:
   dados_miguel:
+
+# Declara a rede externa para o Docker saber que ela já existe
+networks:
+  easypanel:
+    external: true
