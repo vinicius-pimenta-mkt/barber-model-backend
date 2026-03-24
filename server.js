@@ -24,13 +24,21 @@ console.log('Porta:', process.env.PORT || 3002);
 const app = express();
 const PORT = process.env.PORT || 3002;
 
-// Middlewares
+// --- CORREÇÃO DO CORS (FLEXÍVEL E SEM BLOQUEIOS) ---
 app.use(cors({
-  origin: ['https://barber-model-front.vercel.app', 'http://localhost:5173'], 
+  origin: function (origin, callback) {
+    // Retorna "true" para qualquer link que tentar acessar (resolve o seu problema de querer deixar livre)
+    callback(null, true);
+  },
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
 }));
+
+// Garante que as requisições de preflight (OPTIONS) não sejam barradas pelo navegador
+app.options('*', cors());
+// ---------------------------------------------------
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
