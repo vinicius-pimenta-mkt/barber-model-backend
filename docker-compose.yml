@@ -3,11 +3,10 @@ services:
     build: .
     container_name: miguel-api
     restart: always
-    ports:
-      # Expõe a 3002 para o servidor, mas conecta na 3000 dentro do container
-      - "3002:3000"
+    expose:
+      - "3000"
     environment:
-      PORT: 3000 # Força o Node.js a rodar na 3000 lá dentro
+      PORT: 3000
       JWT_SECRET: "019283"
       ADMIN_USER: "miguelalves"
       ADMIN_PASS: "barbershopma"
@@ -15,11 +14,10 @@ services:
       - dados_miguel:/app/database
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.miguel.rule=Host(`api-miguel.unvgroup.tech`)"
-      - "traefik.http.routers.miguel.entrypoints=websecure"
-      - "traefik.http.routers.miguel.tls.certresolver=myresolver"
-      # Avisa o Traefik para rotear o tráfego para a porta 3000 interna
-      - "traefik.http.services.miguel.loadbalancer.server.port=3000"
+      - "traefik.http.routers.miguel-api.rule=Host(`api-miguel.unvgroup.tech`)"
+      - "traefik.http.routers.miguel-api.entrypoints=websecure"
+      - "traefik.http.routers.miguel-api.tls.certresolver=myresolver"
+      - "traefik.http.services.miguel-api.loadbalancer.server.port=3000"
 
 volumes:
   dados_miguel:
