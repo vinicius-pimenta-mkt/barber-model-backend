@@ -26,7 +26,9 @@ const PORT = process.env.PORT || 3002;
 
 // Middlewares
 app.use(cors({
-  origin: '*', 
+  origin: ['https://barber-model-front.vercel.app', 'http://localhost:5173'], 
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
 app.use(express.json());
