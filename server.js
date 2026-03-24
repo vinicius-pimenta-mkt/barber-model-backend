@@ -19,10 +19,10 @@ dotenv.config();
 
 console.log('--- Iniciando Servidor Barbearia ---');
 console.log('Ambiente:', process.env.NODE_ENV);
-console.log('Porta:', process.env.PORT || 3001);
+console.log('Porta:', process.env.PORT || 3002);
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 // Middlewares
 app.use(cors({
