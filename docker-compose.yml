@@ -4,21 +4,21 @@ services:
     container_name: miguel-api
     restart: always
     ports:
-      - "3002:3000" # Porta 3002 isolada para não conflitar com o outro projeto
+      - "3002:3002"
     environment:
-      JWT_SECRET: "019283" # O mesmo token que a IA usa no n8n
+      PORT: 3002 # Força o Node.js a rodar na 3002
+      JWT_SECRET: "019283"
       ADMIN_USER: "miguelalves"
       ADMIN_PASS: "barbershopma"
     volumes:
-      # Volume com nome exclusivo para o Miguel
       - dados_miguel:/app/database
     labels:
       - "traefik.enable=true"
-      # Nomes de roteadores exclusivos (miguel) e o NOVO domínio
       - "traefik.http.routers.miguel.rule=Host(`api-miguel.unvgroup.tech`)"
       - "traefik.http.routers.miguel.entrypoints=websecure"
       - "traefik.http.routers.miguel.tls.certresolver=myresolver"
+      # 👇 ESTA É A LINHA QUE RESOLVE O SEU PROBLEMA:
+      - "traefik.http.services.miguel.loadbalancer.server.port=3002"
 
-# Declaração do volume exclusivo no final
 volumes:
   dados_miguel:
