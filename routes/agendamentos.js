@@ -172,6 +172,26 @@ router.get('/disponibilidade', async (req, res) => {
   }
 });
 
+// Listar todos os agendamentos
+router.get('/', verifyToken, async (req, res) => {
+  try {
+    const { data } = req.query;
+    let queryStr = 'SELECT * FROM agendamentos ORDER BY data DESC, hora DESC';
+    let params = [];
+
+    if (data) {
+      queryStr = 'SELECT * FROM agendamentos WHERE data = ? ORDER BY hora ASC';
+      params = [data];
+    }
+
+    const agendamentos = await all(queryStr, params);
+    res.json(agendamentos);
+  } catch (error) {
+    console.error('Erro em GET /agendamentos:', error);
+    res.status(500).json({ error: 'Erro ao buscar agendamentos' });
+  }
+});
+
 // Helper de fuso horário caso não tenha no topo do arquivo
 function getBrasiliaTime() {
   const agora = new Date();
