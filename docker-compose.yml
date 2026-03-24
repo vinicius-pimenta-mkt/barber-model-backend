@@ -15,7 +15,7 @@ services:
     labels:
       - "traefik.enable=true"
       # Nomes de roteadores exclusivos (miguel) e o NOVO domínio
-      - "traefik.http.routers.miguel.rule=Host(`api-migue.unvgroup.tech`)"
+      - "traefik.http.routers.miguel.rule=Host(`api-miguel.unvgroup.tech`)"
       - "traefik.http.routers.miguel.entrypoints=websecure"
       - "traefik.http.routers.miguel.tls.certresolver=myresolver"
 
