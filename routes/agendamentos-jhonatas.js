@@ -90,7 +90,7 @@ const DURACOES_SERVICOS = {
   'Corte Máquina 1 pente': 20, 'Hidratação Capilar': 10, 'Limpeza Nasal': 10,
   'Luzes': 120, 'Luzes e Corte': 150, 'Navalhado': 20, 'Navalhado + Barba': 40,
   'Pezinho': 10, 'Pigmentação': 20, 'Platinado': 120, 'Platinado e Corte': 150,
-  'Sobrancelha': 10, 'Sobrancelha na fita': 30 // Arredondado de 25 para caber na grade de 10
+  'Sobrancelha': 10, 'Sobrancelha na fita': 30
 };
 
 router.get('/disponibilidade', async (req, res) => {
@@ -106,20 +106,18 @@ router.get('/disponibilidade', async (req, res) => {
     const dataObj = new Date(ano, mes - 1, dia);
     const diaSemana = dataObj.getDay();
 
-    // 1. GERA A GRADE LIMPA DE 10 EM 10 MINUTOS
     let todosSlots = [];
-    const inicioHora = (diaSemana === 6) ? 8 : 9; // Sábado começa 8h, semana 9h
+    const inicioHora = (diaSemana === 6) ? 8 : 9;
     const fimHora = (diaSemana === 6) ? 18 : 19;
 
     for (let h = inicioHora; h < fimHora; h++) {
-      if (h !== 12) { // Pula o almoço
+      if (h !== 12) {
         for (let m = 0; m < 60; m += 10) {
           todosSlots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
         }
       }
     }
 
-    // Filtra passado se for hoje
     const { dataStr: hojeStr, horaStr: horaAtual } = getBrasiliaTime();
     if (data === hojeStr) {
        todosSlots = todosSlots.filter(slot => slot > horaAtual.substring(0, 5));
@@ -127,16 +125,16 @@ router.get('/disponibilidade', async (req, res) => {
        return res.json({ livres: [], mensagem: 'Não é possível agendar no passado.' });
     }
 
-    // 2. DESCOBRE OS HORÁRIOS QUE JÁ ESTÃO OCUPADOS SOMANDO AS DURAÇÕES
+    // CORREÇÃO: Buscando na tabela correta do Jhonatas!
     const agendamentosExistentes = await all(
-      "SELECT hora, servico FROM agendamentos WHERE data = ? AND status != 'Cancelado'",
+      "SELECT hora, servico FROM agendamentos_jhonatas WHERE data = ? AND status != 'Cancelado'",
       [data]
     );
 
     let slotsOcupados = new Set();
 
     agendamentosExistentes.forEach(ag => {
-      const duracaoMinutos = DURACOES_SERVICOS[ag.servico] || 30; // Se não achar, assume 30min
+      const duracaoMinutos = DURACOES_SERVICOS[ag.servico] || 30;
       const blocos = Math.ceil(duracaoMinutos / 10);
       
       let [h, m] = ag.hora.split(':').map(Number);
@@ -148,11 +146,7 @@ router.get('/disponibilidade', async (req, res) => {
       }
     });
 
-    // Filtra os slots que não caíram no Set de ocupados
     let horariosLivresBrutos = todosSlots.filter(slot => !slotsOcupados.has(slot));
-
-    // 3. VERIFICA SE O SERVIÇO CABE NO BURACO LIVRE
-    // Se a IA mandou o serviço, calculamos se tem blocos livres em sequência suficientes!
     let horariosFinais = horariosLivresBrutos;
     
     if (servico && DURACOES_SERVICOS[servico]) {
@@ -160,16 +154,14 @@ router.get('/disponibilidade', async (req, res) => {
       horariosFinais = horariosLivresBrutos.filter(slotInicial => {
         let [h, m] = slotInicial.split(':').map(Number);
         
-        // Verifica os próximos N blocos
         for (let i = 0; i < blocosNecessarios; i++) {
           const slotSendoChecado = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-          // Se o slot bater no horário de almoço ou fim do expediente, ou estiver ocupado, não serve.
           if (!horariosLivresBrutos.includes(slotSendoChecado)) return false;
           
           m += 10;
           if (m >= 60) { m -= 60; h += 1; }
         }
-        return true; // Se passou pelo for inteiro, o buraco é grande o suficiente!
+        return true; 
       });
     }
 
@@ -179,7 +171,6 @@ router.get('/disponibilidade', async (req, res) => {
   }
 });
 
-// Helper de fuso horário caso não tenha no topo do arquivo
 function getBrasiliaTime() {
   const agora = new Date();
   const utc = agora.getTime() + (agora.getTimezoneOffset() * 60000);
@@ -198,7 +189,6 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Dados obrigatórios faltando' });
     }
 
-    // APLICANDO OS FILTROS BLINDADOS ANTES DE SALVAR
     const precoLimpo = padronizarPreco(preco);
     const pagamentoLimpo = padronizarPagamento(forma_pagamento);
     const servicoLimpo = padronizarServico(servico);
@@ -247,7 +237,6 @@ router.put('/:id', verifyToken, async (req, res) => {
     const { id } = req.params;
     const { cliente_nome, cliente_telefone, servico, data, hora, status, preco, forma_pagamento, observacoes } = req.body;
 
-    // APLICANDO OS FILTROS BLINDADOS ANTES DE SALVAR
     const precoLimpo = padronizarPreco(preco);
     const pagamentoLimpo = padronizarPagamento(forma_pagamento);
     const servicoLimpo = padronizarServico(servico);
