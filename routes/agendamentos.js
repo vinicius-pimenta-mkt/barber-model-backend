@@ -15,15 +15,12 @@ const padronizarPreco = (precoRaw) => {
   if (precoRaw === null || precoRaw === undefined || precoRaw === '') return 0;
   
   if (typeof precoRaw === 'number') {
-    // Se a IA mandou como número puro (ex: 45). Multiplica pra virar centavos (4500).
     return precoRaw < 1000 ? Math.round(precoRaw * 100) : Math.round(precoRaw);
   }
 
-  // Limpa tudo que não for número, ponto ou vírgula
   let limpo = String(precoRaw).replace(/[^\d.,]/g, '');
   if (!limpo) return 0;
 
-  // Se tiver vírgula (padrão Brasil), converte pra ponto (padrão Computador)
   if (limpo.includes(',')) {
     limpo = limpo.replace(/\./g, '').replace(',', '.');
   }
@@ -31,7 +28,6 @@ const padronizarPreco = (precoRaw) => {
   const valorFloat = parseFloat(limpo);
   if (isNaN(valorFloat)) return 0;
 
-  // Transforma em centavos
   return valorFloat < 1000 ? Math.round(valorFloat * 100) : Math.round(valorFloat);
 };
 
@@ -44,13 +40,12 @@ const padronizarPagamento = (forma) => {
   if (limpo.includes('dinheiro')) return 'Dinheiro';
   if (limpo.includes('pix')) return 'Pix';
   
-  // Se for algo diferente, só garante que está formatado bonitinho
   return String(forma).trim();
 };
 
 const padronizarServico = (servico) => {
   if (!servico) return 'Não informado';
-  return String(servico).trim().replace(/\s+/g, ' '); // Tira espaços duplos
+  return String(servico).trim().replace(/\s+/g, ' ');
 };
 // --- FIM DOS FILTROS BLINDADOS ---
 
@@ -73,7 +68,6 @@ const isDiaFechado = (dataStr) => {
   }
 };
 
-// Listar todos os agendamentos
 // Dicionário de duração dos serviços em MINUTOS
 const DURACOES_SERVICOS = {
   'Barba': 20, 'Barba + Pézinho': 30, 'Barba + Pigmentação': 30,
@@ -83,131 +77,13 @@ const DURACOES_SERVICOS = {
   'Corte Máquina 1 pente': 20, 'Hidratação Capilar': 10, 'Limpeza Nasal': 10,
   'Luzes': 120, 'Luzes e Corte': 150, 'Navalhado': 20, 'Navalhado + Barba': 40,
   'Pezinho': 10, 'Pigmentação': 20, 'Platinado': 120, 'Platinado e Corte': 150,
-  'Sobrancelha': 10, 'Sobrancelha na fita': 30 // Arredondado de 25 para caber na grade de 10
+  'Sobrancelha': 10, 'Sobrancelha na fita': 30 
 };
-
-router.get('/disponibilidade', async (req, res) => {
-  try {
-    const { data, servico } = req.query;
-    if (!data) return res.status(400).json({ error: 'Data é obrigatória' });
-
-    if (isDiaFechado(data)) {
-      return res.json({ livres: [], mensagem: 'A barbearia está fechada aos Domingos e Segundas.' });
-    }
-
-    const [ano, mes, dia] = data.split('-');
-    const dataObj = new Date(ano, mes - 1, dia);
-    const diaSemana = dataObj.getDay();
-
-    // 1. GERA A GRADE LIMPA DE 10 EM 10 MINUTOS
-    let todosSlots = [];
-    const inicioHora = (diaSemana === 6) ? 8 : 9; // Sábado começa 8h, semana 9h
-    const fimHora = (diaSemana === 6) ? 18 : 19;
-
-    for (let h = inicioHora; h < fimHora; h++) {
-      if (h !== 12) { // Pula o almoço
-        for (let m = 0; m < 60; m += 10) {
-          todosSlots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
-        }
-      }
-    }
-
-    // Filtra passado se for hoje
-    const { dataStr: hojeStr, horaStr: horaAtual } = getBrasiliaTime();
-    if (data === hojeStr) {
-       todosSlots = todosSlots.filter(slot => slot > horaAtual.substring(0, 5));
-    } else if (data < hojeStr) {
-       return res.json({ livres: [], mensagem: 'Não é possível agendar no passado.' });
-    }
-
-    // 2. DESCOBRE OS HORÁRIOS QUE JÁ ESTÃO OCUPADOS SOMANDO AS DURAÇÕES
-    const agendamentosExistentes = await all(
-      "SELECT hora, servico FROM agendamentos WHERE data = ? AND status != 'Cancelado'",
-      [data]
-    );
-
-    let slotsOcupados = new Set();
-
-    agendamentosExistentes.forEach(ag => {
-      const duracaoMinutos = DURACOES_SERVICOS[ag.servico] || 30; // Se não achar, assume 30min
-      const blocos = Math.ceil(duracaoMinutos / 10);
-      
-      let [h, m] = ag.hora.split(':').map(Number);
-      
-      for (let i = 0; i < blocos; i++) {
-        slotsOcupados.add(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
-        m += 10;
-        if (m >= 60) { m -= 60; h += 1; }
-      }
-    });
-
-    // Filtra os slots que não caíram no Set de ocupados
-    let horariosLivresBrutos = todosSlots.filter(slot => !slotsOcupados.has(slot));
-
-    // 3. VERIFICA SE O SERVIÇO CABE NO BURACO LIVRE
-    // Se a IA mandou o serviço, calculamos se tem blocos livres em sequência suficientes!
-    let horariosFinais = horariosLivresBrutos;
-    
-    if (servico && DURACOES_SERVICOS[servico]) {
-      const blocosNecessarios = Math.ceil(DURACOES_SERVICOS[servico] / 10);
-      horariosFinais = horariosLivresBrutos.filter(slotInicial => {
-        let [h, m] = slotInicial.split(':').map(Number);
-        
-        // Verifica os próximos N blocos
-        for (let i = 0; i < blocosNecessarios; i++) {
-          const slotSendoChecado = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-          // Se o slot bater no horário de almoço ou fim do expediente, ou estiver ocupado, não serve.
-          if (!horariosLivresBrutos.includes(slotSendoChecado)) return false;
-          
-          m += 10;
-          if (m >= 60) { m -= 60; h += 1; }
-        }
-        return true; // Se passou pelo for inteiro, o buraco é grande o suficiente!
-      });
-    }
-
-    res.json({ livres: horariosFinais });
-  } catch (error) {
-    res.status(500).json({ error: 'Erro ao calcular disponibilidade' });
-  }
-});
-
-// Listar todos os agendamentos
-router.get('/', verifyToken, async (req, res) => {
-  try {
-    const { data } = req.query;
-    let queryStr = 'SELECT * FROM agendamentos ORDER BY data DESC, hora DESC';
-    let params = [];
-
-    if (data) {
-      queryStr = 'SELECT * FROM agendamentos WHERE data = ? ORDER BY hora ASC';
-      params = [data];
-    }
-
-    const agendamentos = await all(queryStr, params);
-    res.json(agendamentos);
-  } catch (error) {
-    console.error('Erro em GET /agendamentos:', error);
-    res.status(500).json({ error: 'Erro ao buscar agendamentos' });
-  }
-});
-
-// Helper de fuso horário caso não tenha no topo do arquivo
-function getBrasiliaTime() {
-  const agora = new Date();
-  const utc = agora.getTime() + (agora.getTimezoneOffset() * 60000);
-  const dataBrasilia = new Date(utc + (3600000 * -3));
-  return { 
-    dataStr: dataBrasilia.toISOString().split('T')[0], 
-    horaStr: dataBrasilia.toLocaleTimeString('pt-BR', { hour12: false, hour: '2-digit', minute: '2-digit' }) 
-  };
-}
 
 // Rota para buscar os agendamentos principais (Miguel)
 router.get('/', verifyToken, async (req, res) => {
   try {
     const { data, data_inicio, data_fim, status } = req.query;
-    // Atenção aqui: buscando na tabela principal 'agendamentos'
     let queryText = 'SELECT * FROM agendamentos'; 
     const params = [];
     const conditions = [];
@@ -229,7 +105,93 @@ router.get('/', verifyToken, async (req, res) => {
   }
 });
 
-// Criar novo agendamento
+router.get('/disponibilidade', async (req, res) => {
+  try {
+    const { data, servico } = req.query;
+    if (!data) return res.status(400).json({ error: 'Data é obrigatória' });
+
+    if (isDiaFechado(data)) {
+      return res.json({ livres: [], mensagem: 'A barbearia está fechada aos Domingos e Segundas.' });
+    }
+
+    const [ano, mes, dia] = data.split('-');
+    const dataObj = new Date(ano, mes - 1, dia);
+    const diaSemana = dataObj.getDay();
+
+    let todosSlots = [];
+    const inicioHora = (diaSemana === 6) ? 8 : 9; // Sábado começa 8h, semana 9h
+    const fimHora = (diaSemana === 6) ? 18 : 19;
+
+    for (let h = inicioHora; h < fimHora; h++) {
+      if (h !== 12) { // Pula o almoço
+        for (let m = 0; m < 60; m += 10) {
+          todosSlots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+        }
+      }
+    }
+
+    const { dataStr: hojeStr, horaStr: horaAtual } = getBrasiliaTime();
+    if (data === hojeStr) {
+       todosSlots = todosSlots.filter(slot => slot > horaAtual.substring(0, 5));
+    } else if (data < hojeStr) {
+       return res.json({ livres: [], mensagem: 'Não é possível agendar no passado.' });
+    }
+
+    const agendamentosExistentes = await all(
+      "SELECT hora, servico FROM agendamentos WHERE data = ? AND status != 'Cancelado'",
+      [data]
+    );
+
+    let slotsOcupados = new Set();
+
+    agendamentosExistentes.forEach(ag => {
+      const duracaoMinutos = DURACOES_SERVICOS[ag.servico] || 30; 
+      const blocos = Math.ceil(duracaoMinutos / 10);
+      
+      let [h, m] = ag.hora.split(':').map(Number);
+      
+      for (let i = 0; i < blocos; i++) {
+        slotsOcupados.add(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+        m += 10;
+        if (m >= 60) { m -= 60; h += 1; }
+      }
+    });
+
+    let horariosLivresBrutos = todosSlots.filter(slot => !slotsOcupados.has(slot));
+    let horariosFinais = horariosLivresBrutos;
+    
+    if (servico && DURACOES_SERVICOS[servico]) {
+      const blocosNecessarios = Math.ceil(DURACOES_SERVICOS[servico] / 10);
+      horariosFinais = horariosLivresBrutos.filter(slotInicial => {
+        let [h, m] = slotInicial.split(':').map(Number);
+        
+        for (let i = 0; i < blocosNecessarios; i++) {
+          const slotSendoChecado = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+          if (!horariosLivresBrutos.includes(slotSendoChecado)) return false;
+          
+          m += 10;
+          if (m >= 60) { m -= 60; h += 1; }
+        }
+        return true; 
+      });
+    }
+
+    res.json({ livres: horariosFinais });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao calcular disponibilidade' });
+  }
+});
+
+function getBrasiliaTime() {
+  const agora = new Date();
+  const utc = agora.getTime() + (agora.getTimezoneOffset() * 60000);
+  const dataBrasilia = new Date(utc + (3600000 * -3));
+  return { 
+    dataStr: dataBrasilia.toISOString().split('T')[0], 
+    horaStr: dataBrasilia.toLocaleTimeString('pt-BR', { hour12: false, hour: '2-digit', minute: '2-digit' }) 
+  };
+}
+
 router.post('/', async (req, res) => {
   try {
     const { cliente_nome, cliente_telefone, servico, data, hora, status = 'Confirmado', preco, forma_pagamento, observacoes, cliente_id } = req.body;
@@ -238,7 +200,6 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Dados obrigatórios faltando' });
     }
 
-    // APLICANDO OS FILTROS BLINDADOS ANTES DE SALVAR
     const precoLimpo = padronizarPreco(preco);
     const pagamentoLimpo = padronizarPagamento(forma_pagamento);
     const servicoLimpo = padronizarServico(servico);
@@ -282,13 +243,11 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Atualizar agendamento
 router.put('/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { cliente_nome, cliente_telefone, servico, data, hora, status, preco, forma_pagamento, observacoes } = req.body;
     
-    // APLICANDO OS FILTROS BLINDADOS ANTES DE SALVAR
     const precoLimpo = padronizarPreco(preco);
     const pagamentoLimpo = padronizarPagamento(forma_pagamento);
     const servicoLimpo = padronizarServico(servico);
