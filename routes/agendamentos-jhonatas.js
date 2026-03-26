@@ -85,6 +85,7 @@ router.get('/', verifyToken, async (req, res) => {
 const DURACOES_SERVICOS = {
   'Barba': 20, 'Barba + Pézinho': 30, 'Barba + Pigmentação': 30,
   'Barba Express': 20, 'Bigode': 10, 'Camuflagem (Fios brancos)': 20,
+  'Combo Corte + Barba + Sobrancelha': 60,
   'Cone Hindu': 20, 'Corte': 30, 'Corte + Pigmentação': 40,
   'Corte 1 pente + barba': 40, 'Corte e Barba': 50, 'Corte Infantil': 30,
   'Corte Máquina 1 pente': 20, 'Hidratação Capilar': 10, 'Limpeza Nasal': 10,
@@ -98,11 +99,22 @@ router.get('/disponibilidade', async (req, res) => {
     const { data, servico } = req.query;
     if (!data) return res.status(400).json({ error: 'Data é obrigatória' });
 
-    if (isDiaFechado(data)) {
+    // SUPER CORREÇÃO DE DATA (Garante que a IA sempre ache o dia certo)
+    let dataFormatada = data;
+    if (data.includes('/')) {
+      const partes = data.split('/');
+      if (partes[0].length === 2) { 
+        dataFormatada = `${partes[2]}-${partes[1]}-${partes[0]}`;
+      } else { 
+        dataFormatada = `${partes[0]}-${partes[1]}-${partes[2]}`;
+      }
+    }
+
+    if (isDiaFechado(dataFormatada)) {
       return res.json({ livres: [], mensagem: 'A barbearia está fechada aos Domingos e Segundas.' });
     }
 
-    const [ano, mes, dia] = data.split('-');
+    const [ano, mes, dia] = dataFormatada.split('-');
     const dataObj = new Date(ano, mes - 1, dia);
     const diaSemana = dataObj.getDay();
 
@@ -119,16 +131,16 @@ router.get('/disponibilidade', async (req, res) => {
     }
 
     const { dataStr: hojeStr, horaStr: horaAtual } = getBrasiliaTime();
-    if (data === hojeStr) {
+    if (dataFormatada === hojeStr) {
        todosSlots = todosSlots.filter(slot => slot > horaAtual.substring(0, 5));
-    } else if (data < hojeStr) {
+    } else if (dataFormatada < hojeStr) {
        return res.json({ livres: [], mensagem: 'Não é possível agendar no passado.' });
     }
 
     // CORREÇÃO: Buscando na tabela correta do Jhonatas!
     const agendamentosExistentes = await all(
       "SELECT hora, servico FROM agendamentos_jhonatas WHERE data = ? AND status != 'Cancelado'",
-      [data]
+      [dataFormatada]
     );
 
     let slotsOcupados = new Set();
@@ -149,20 +161,25 @@ router.get('/disponibilidade', async (req, res) => {
     let horariosLivresBrutos = todosSlots.filter(slot => !slotsOcupados.has(slot));
     let horariosFinais = horariosLivresBrutos;
     
-    if (servico && DURACOES_SERVICOS[servico]) {
-      const blocosNecessarios = Math.ceil(DURACOES_SERVICOS[servico] / 10);
-      horariosFinais = horariosLivresBrutos.filter(slotInicial => {
-        let [h, m] = slotInicial.split(':').map(Number);
-        
-        for (let i = 0; i < blocosNecessarios; i++) {
-          const slotSendoChecado = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-          if (!horariosLivresBrutos.includes(slotSendoChecado)) return false;
+    // VERIFICA SE O SERVIÇO CABE NO BURACO LIVRE
+    if (servico && servico !== 'undefined' && servico !== 'null') {
+      const servicoLimpo = servico.replace(/['"]/g, '').trim(); // Remove aspas extras da IA
+      
+      if (DURACOES_SERVICOS[servicoLimpo]) {
+        const blocosNecessarios = Math.ceil(DURACOES_SERVICOS[servicoLimpo] / 10);
+        horariosFinais = horariosLivresBrutos.filter(slotInicial => {
+          let [h, m] = slotInicial.split(':').map(Number);
           
-          m += 10;
-          if (m >= 60) { m -= 60; h += 1; }
-        }
-        return true; 
-      });
+          for (let i = 0; i < blocosNecessarios; i++) {
+            const slotSendoChecado = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+            if (!horariosLivresBrutos.includes(slotSendoChecado)) return false;
+            
+            m += 10;
+            if (m >= 60) { m -= 60; h += 1; }
+          }
+          return true; 
+        });
+      }
     }
 
     res.json({ livres: horariosFinais });
@@ -183,7 +200,7 @@ function getBrasiliaTime() {
 
 router.post('/', async (req, res) => {
   try {
-    const { cliente_nome, cliente_telefone, servico, data, hora, status = 'Pendente', preco, forma_pagamento, observacoes, cliente_id } = req.body;
+    const { cliente_nome, cliente_telefone, servico, data, hora, status = 'Confirmado', preco, forma_pagamento, observacoes, cliente_id } = req.body;
 
     if (!cliente_nome || !servico || !data || !hora) {
       return res.status(400).json({ error: 'Dados obrigatórios faltando' });
