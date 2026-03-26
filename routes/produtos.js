@@ -29,6 +29,34 @@ const initDb = async () => {
         FOREIGN KEY(produto_id) REFERENCES produtos(id)
       )
     `);
+
+    // --- MÁGICA: AUTO-POPULAÇÃO DE PRODUTOS ---
+    // O sistema verifica se a tabela está vazia. Se estiver, ele injeta os 12 produtos com 10 unidades.
+    const countRes = await get('SELECT COUNT(*) as count FROM produtos');
+    if (countRes && countRes.count === 0) {
+      console.log("Tabela vazia detectada. Injetando lista de produtos padrão...");
+      const produtosIniciais = [
+        { nome: 'Balm para barba', preco: 4500 },
+        { nome: 'Cera Modeladora Efeito Matte', preco: 3500 },
+        { nome: 'Gel cola', preco: 3000 },
+        { nome: 'Leave-in', preco: 4500 },
+        { nome: 'Loção pós barba', preco: 4000 },
+        { nome: 'Óleo para barba', preco: 4500 },
+        { nome: 'Pomada Modeladora (Laranja)', preco: 3000 },
+        { nome: 'Pomada Modeladora Efeito seco (amarelo)', preco: 3000 },
+        { nome: 'Pomada Modeladora em Pó', preco: 4000 },
+        { nome: 'Pomada Modeladora Extra Forte (Azul)', preco: 3000 },
+        { nome: 'Shampoo Anti-Caspa', preco: 4000 },
+        { nome: 'Shampoo para Barba', preco: 2500 }
+      ];
+
+      for (const p of produtosIniciais) {
+        await query('INSERT INTO produtos (nome, preco, estoque) VALUES (?, ?, ?)', [p.nome, p.preco, 10]);
+      }
+      console.log("✅ 12 produtos inseridos com sucesso com 10 unidades cada!");
+    }
+    // ------------------------------------------
+
     console.log("✅ Tabelas de produtos criadas/verificadas com sucesso!");
   } catch (error) {
     console.error('Erro ao criar tabelas de produtos:', error);
