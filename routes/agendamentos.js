@@ -4,7 +4,6 @@ import { verifyToken } from './auth.js';
 
 const router = express.Router();
 
-// --- INÍCIO DOS FILTROS BLINDADOS (TRADUTORES DA IA) ---
 const limparTelefone = (telefone) => {
   if (!telefone || typeof telefone !== 'string') return null;
   const apenasNumeros = telefone.replace(/\D/g, '');
@@ -13,43 +12,32 @@ const limparTelefone = (telefone) => {
 
 const padronizarPreco = (precoRaw) => {
   if (precoRaw === null || precoRaw === undefined || precoRaw === '') return 0;
-  
   if (typeof precoRaw === 'number') {
     return precoRaw < 1000 ? Math.round(precoRaw * 100) : Math.round(precoRaw);
   }
-
   let limpo = String(precoRaw).replace(/[^\d.,]/g, '');
   if (!limpo) return 0;
-
-  if (limpo.includes(',')) {
-    limpo = limpo.replace(/\./g, '').replace(',', '.');
-  }
-
+  if (limpo.includes(',')) { limpo = limpo.replace(/\./g, '').replace(',', '.'); }
   const valorFloat = parseFloat(limpo);
   if (isNaN(valorFloat)) return 0;
-
   return valorFloat < 1000 ? Math.round(valorFloat * 100) : Math.round(valorFloat);
 };
 
 const padronizarPagamento = (forma) => {
   if (!forma) return 'Não informado';
   const limpo = String(forma).toLowerCase().trim().replace(/\./g, '');
-  
   if (limpo.includes('crédito') || limpo.includes('credito')) return 'Cartão de Crédito';
   if (limpo.includes('débito') || limpo.includes('debito')) return 'Cartão de Débito';
   if (limpo.includes('dinheiro')) return 'Dinheiro';
   if (limpo.includes('pix')) return 'Pix';
-  
   return String(forma).trim();
 };
 
 const padronizarServico = (servico) => {
   if (!servico) return 'Não informado';
-  return String(servico).trim().replace(/\s+/g, ' ');
+  return String(servico).trim().replace(/\s+/g, ' '); 
 };
-// --- FIM DOS FILTROS BLINDADOS ---
 
-// Trava Global de Dias Fechados
 const isDiaFechado = (dataStr) => {
   if (!dataStr) return false;
   try {
@@ -62,25 +50,24 @@ const isDiaFechado = (dataStr) => {
     }
     const dataObj = new Date(Number(ano), Number(mes) - 1, Number(dia));
     const diaSemana = dataObj.getDay();
-    return diaSemana === 0 || diaSemana === 1; // 0 = Domingo, 1 = Segunda
+    return diaSemana === 0 || diaSemana === 1; 
   } catch (e) {
     return false;
   }
 };
 
-// Dicionário de duração dos serviços em MINUTOS
 const DURACOES_SERVICOS = {
   'Barba': 20, 'Barba + Pézinho': 30, 'Barba + Pigmentação': 30,
   'Barba Express': 20, 'Bigode': 10, 'Camuflagem (Fios brancos)': 20,
+  'Combo Corte + Barba + Sobrancelha': 60,
   'Cone Hindu': 20, 'Corte': 30, 'Corte + Pigmentação': 40,
   'Corte 1 pente + barba': 40, 'Corte e Barba': 50, 'Corte Infantil': 30,
   'Corte Máquina 1 pente': 20, 'Hidratação Capilar': 10, 'Limpeza Nasal': 10,
   'Luzes': 120, 'Luzes e Corte': 150, 'Navalhado': 20, 'Navalhado + Barba': 40,
   'Pezinho': 10, 'Pigmentação': 20, 'Platinado': 120, 'Platinado e Corte': 150,
-  'Sobrancelha': 10, 'Sobrancelha na fita': 30 
+  'Sobrancelha': 10, 'Sobrancelha na fita': 30
 };
 
-// Rota para buscar os agendamentos principais (Miguel)
 router.get('/', verifyToken, async (req, res) => {
   try {
     const { data, data_inicio, data_fim, status } = req.query;
@@ -100,7 +87,6 @@ router.get('/', verifyToken, async (req, res) => {
     const result = await all(queryText, params);
     res.json(result);
   } catch (error) {
-    console.error('Erro em GET /agendamentos:', error);
     res.status(500).json({ error: 'Erro ao buscar agendamentos' });
   }
 });
@@ -110,20 +96,31 @@ router.get('/disponibilidade', async (req, res) => {
     const { data, servico } = req.query;
     if (!data) return res.status(400).json({ error: 'Data é obrigatória' });
 
-    if (isDiaFechado(data)) {
+    // SUPER CORREÇÃO DE DATA (Garante que a IA sempre ache o dia certo)
+    let dataFormatada = data;
+    if (data.includes('/')) {
+      const partes = data.split('/');
+      if (partes[0].length === 2) { 
+        dataFormatada = `${partes[2]}-${partes[1]}-${partes[0]}`;
+      } else { 
+        dataFormatada = `${partes[0]}-${partes[1]}-${partes[2]}`;
+      }
+    }
+
+    if (isDiaFechado(dataFormatada)) {
       return res.json({ livres: [], mensagem: 'A barbearia está fechada aos Domingos e Segundas.' });
     }
 
-    const [ano, mes, dia] = data.split('-');
+    const [ano, mes, dia] = dataFormatada.split('-');
     const dataObj = new Date(ano, mes - 1, dia);
     const diaSemana = dataObj.getDay();
 
     let todosSlots = [];
-    const inicioHora = (diaSemana === 6) ? 8 : 9; // Sábado começa 8h, semana 9h
+    const inicioHora = (diaSemana === 6) ? 8 : 9;
     const fimHora = (diaSemana === 6) ? 18 : 19;
 
     for (let h = inicioHora; h < fimHora; h++) {
-      if (h !== 12) { // Pula o almoço
+      if (h !== 12) {
         for (let m = 0; m < 60; m += 10) {
           todosSlots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
         }
@@ -131,21 +128,21 @@ router.get('/disponibilidade', async (req, res) => {
     }
 
     const { dataStr: hojeStr, horaStr: horaAtual } = getBrasiliaTime();
-    if (data === hojeStr) {
+    if (dataFormatada === hojeStr) {
        todosSlots = todosSlots.filter(slot => slot > horaAtual.substring(0, 5));
-    } else if (data < hojeStr) {
+    } else if (dataFormatada < hojeStr) {
        return res.json({ livres: [], mensagem: 'Não é possível agendar no passado.' });
     }
 
     const agendamentosExistentes = await all(
       "SELECT hora, servico FROM agendamentos WHERE data = ? AND status != 'Cancelado'",
-      [data]
+      [dataFormatada]
     );
 
     let slotsOcupados = new Set();
 
     agendamentosExistentes.forEach(ag => {
-      const duracaoMinutos = DURACOES_SERVICOS[ag.servico] || 30; 
+      const duracaoMinutos = DURACOES_SERVICOS[ag.servico] || 30;
       const blocos = Math.ceil(duracaoMinutos / 10);
       
       let [h, m] = ag.hora.split(':').map(Number);
@@ -160,20 +157,25 @@ router.get('/disponibilidade', async (req, res) => {
     let horariosLivresBrutos = todosSlots.filter(slot => !slotsOcupados.has(slot));
     let horariosFinais = horariosLivresBrutos;
     
-    if (servico && DURACOES_SERVICOS[servico]) {
-      const blocosNecessarios = Math.ceil(DURACOES_SERVICOS[servico] / 10);
-      horariosFinais = horariosLivresBrutos.filter(slotInicial => {
-        let [h, m] = slotInicial.split(':').map(Number);
-        
-        for (let i = 0; i < blocosNecessarios; i++) {
-          const slotSendoChecado = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-          if (!horariosLivresBrutos.includes(slotSendoChecado)) return false;
+    // VERIFICA SE O SERVIÇO CABE NO BURACO LIVRE
+    if (servico && servico !== 'undefined' && servico !== 'null') {
+      const servicoLimpo = servico.replace(/['"]/g, '').trim(); // Remove aspas extras da IA
+      
+      if (DURACOES_SERVICOS[servicoLimpo]) {
+        const blocosNecessarios = Math.ceil(DURACOES_SERVICOS[servicoLimpo] / 10);
+        horariosFinais = horariosLivresBrutos.filter(slotInicial => {
+          let [h, m] = slotInicial.split(':').map(Number);
           
-          m += 10;
-          if (m >= 60) { m -= 60; h += 1; }
-        }
-        return true; 
-      });
+          for (let i = 0; i < blocosNecessarios; i++) {
+            const slotSendoChecado = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+            if (!horariosLivresBrutos.includes(slotSendoChecado)) return false;
+            
+            m += 10;
+            if (m >= 60) { m -= 60; h += 1; }
+          }
+          return true; 
+        });
+      }
     }
 
     res.json({ livres: horariosFinais });
@@ -207,7 +209,7 @@ router.post('/', async (req, res) => {
     const horaFormatada = hora.substring(0, 5);
 
     if (isDiaFechado(data) && status !== 'Bloqueado') {
-      return res.status(400).json({ error: 'A barbearia está fechada aos Domingos e Segundas-feiras.' });
+      return res.status(400).json({ error: 'A barbearia está fechada.' });
     }
 
     const horarioOcupado = await get(
@@ -216,7 +218,7 @@ router.post('/', async (req, res) => {
     );
 
     if (horarioOcupado && status !== 'Bloqueado') {
-      return res.status(400).json({ error: 'Horário indisponível. Já existe um agendamento para este momento.' });
+      return res.status(400).json({ error: 'Horário indisponível.' });
     }
 
     const safeClienteId = cliente_id || null;
@@ -254,7 +256,7 @@ router.put('/:id', verifyToken, async (req, res) => {
     const telefoneLimpo = limparTelefone(cliente_telefone);
 
     if (isDiaFechado(data) && status !== 'Bloqueado') {
-      return res.status(400).json({ error: 'A barbearia está fechada aos Domingos e Segundas-feiras.' });
+      return res.status(400).json({ error: 'A barbearia está fechada.' });
     }
 
     const horarioOcupado = await get(
@@ -263,7 +265,7 @@ router.put('/:id', verifyToken, async (req, res) => {
     );
 
     if (horarioOcupado && status !== 'Bloqueado') {
-      return res.status(400).json({ error: 'Horário indisponível. Já existe um agendamento para este momento.' });
+      return res.status(400).json({ error: 'Horário indisponível.' });
     }
 
     await query(
