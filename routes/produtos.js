@@ -30,6 +30,15 @@ const initDb = async () => {
       )
     `);
 
+    // --- VACINA DE ATUALIZAÇÃO DO BANCO ANTIGO ---
+    // Tenta forçar a adição da coluna 'hora' na tabela antiga. 
+    // Se a coluna já existir, ele dá erro e o 'catch' ignora em silêncio.
+    try {
+      await query(`ALTER TABLE produtos_historico ADD COLUMN hora TEXT`);
+      console.log("✅ Coluna 'hora' injetada com sucesso no banco antigo!");
+    } catch (e) {}
+    // --------------------------------------------
+
     // AUTO-POPULAÇÃO DE PRODUTOS
     const countRes = await get('SELECT COUNT(*) as count FROM produtos');
     if (countRes && countRes.count === 0) {
