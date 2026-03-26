@@ -30,8 +30,7 @@ const initDb = async () => {
       )
     `);
 
-    // --- MÁGICA: AUTO-POPULAÇÃO DE PRODUTOS ---
-    // O sistema verifica se a tabela está vazia. Se estiver, ele injeta os 12 produtos com 10 unidades.
+    // AUTO-POPULAÇÃO DE PRODUTOS
     const countRes = await get('SELECT COUNT(*) as count FROM produtos');
     if (countRes && countRes.count === 0) {
       console.log("Tabela vazia detectada. Injetando lista de produtos padrão...");
@@ -55,15 +54,11 @@ const initDb = async () => {
       }
       console.log("✅ 12 produtos inseridos com sucesso com 10 unidades cada!");
     }
-    // ------------------------------------------
-
-    console.log("✅ Tabelas de produtos criadas/verificadas com sucesso!");
   } catch (error) {
     console.error('Erro ao criar tabelas de produtos:', error);
   }
 };
 
-// A MÁGICA DA CORREÇÃO: Espera 2 segundos para dar tempo do banco de dados ligar completamente!
 setTimeout(initDb, 2000);
 
 // Listar todos os produtos
@@ -83,7 +78,7 @@ router.post('/', verifyToken, async (req, res) => {
     const precoEmCentavos = Math.round(parseFloat(preco.toString().replace(',', '.')) * 100);
     const result = await query(
       'INSERT INTO produtos (nome, preco, estoque) VALUES (?, ?, ?)',
-      [nome, precoEmCentavos, estoque || 0]
+      [nome, precoEmCentavos, parseInt(estoque) || 0]
     );
     res.status(201).json({ id: result.lastID, message: 'Produto cadastrado' });
   } catch (error) {
@@ -91,38 +86,45 @@ router.post('/', verifyToken, async (req, res) => {
   }
 });
 
-// Movimentar (Comprar ou Vender)
+// Movimentar (Comprar ou Vender) - TOTALMENTE BLINDADO
 router.post('/:id/movimentar', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { tipo, quantidade, forma_pagamento } = req.body;
     
-    const produto = await get('SELECT * FROM produtos WHERE id = ?', [id]);
+    // Força conversão para número para evitar erros no banco
+    const produtoId = parseInt(id);
+    const qtd = parseInt(quantidade);
+    
+    const produto = await get('SELECT * FROM produtos WHERE id = ?', [produtoId]);
     if (!produto) return res.status(404).json({ error: 'Produto não encontrado' });
 
-    if (tipo === 'venda' && produto.estoque < quantidade) {
+    if (tipo === 'venda' && produto.estoque < qtd) {
       return res.status(400).json({ error: `Estoque insuficiente. Restam apenas ${produto.estoque} unidades.` });
     }
 
-    const novoEstoque = tipo === 'venda' ? produto.estoque - quantidade : produto.estoque + quantidade;
-    const valorTotal = quantidade * produto.preco;
+    const novoEstoque = tipo === 'venda' ? produto.estoque - qtd : produto.estoque + qtd;
+    const valorTotal = Math.round(qtd * produto.preco);
     
-    // Data e Hora de Brasília
+    // Data e Hora "à prova de falhas" (não depende da tradução do Linux)
     const agora = new Date();
     const utc = agora.getTime() + (agora.getTimezoneOffset() * 60000);
     const br = new Date(utc + (3600000 * -3));
+    
     const dataStr = br.toISOString().split('T')[0];
-    const horaStr = br.toLocaleTimeString('pt-BR', { hour12: false, hour: '2-digit', minute: '2-digit' });
+    const horaStr = `${String(br.getHours()).padStart(2, '0')}:${String(br.getMinutes()).padStart(2, '0')}`;
 
-    await query('UPDATE produtos SET estoque = ? WHERE id = ?', [novoEstoque, id]);
+    await query('UPDATE produtos SET estoque = ? WHERE id = ?', [novoEstoque, produtoId]);
     await query(
       'INSERT INTO produtos_historico (produto_id, tipo, quantidade, valor_total, forma_pagamento, data, hora) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, tipo, quantidade, valorTotal, forma_pagamento, dataStr, horaStr]
+      [produtoId, tipo, qtd, valorTotal, forma_pagamento || 'Dinheiro', dataStr, horaStr]
     );
 
     res.json({ message: 'Estoque atualizado com sucesso', novoEstoque });
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao movimentar estoque' });
+    console.error('ERRO CRÍTICO AO MOVIMENTAR ESTOQUE:', error);
+    // Agora o erro exato do banco vai aparecer no alerta da sua tela!
+    res.status(500).json({ error: `Erro no servidor: ${error.message}` });
   }
 });
 
@@ -132,7 +134,7 @@ router.put('/:id', verifyToken, async (req, res) => {
     const { id } = req.params;
     const { nome, preco } = req.body;
     const precoEmCentavos = Math.round(parseFloat(preco.toString().replace(',', '.')) * 100);
-    await query('UPDATE produtos SET nome = ?, preco = ? WHERE id = ?', [nome, precoEmCentavos, id]);
+    await query('UPDATE produtos SET nome = ?, preco = ? WHERE id = ?', [nome, precoEmCentavos, parseInt(id)]);
     res.json({ message: 'Produto atualizado' });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao atualizar produto' });
@@ -142,7 +144,7 @@ router.put('/:id', verifyToken, async (req, res) => {
 // Deletar produto
 router.delete('/:id', verifyToken, async (req, res) => {
   try {
-    await query('DELETE FROM produtos WHERE id = ?', [req.params.id]);
+    await query('DELETE FROM produtos WHERE id = ?', [parseInt(req.params.id)]);
     res.json({ message: 'Produto removido' });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao remover produto' });
