@@ -126,6 +126,28 @@ export const initDatabase = async () => {
       )
     `);
 
+    // NOVA TABELA: Configurações Gerais do Sistema
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS configuracoes (
+        chave TEXT PRIMARY KEY,
+        valor TEXT NOT NULL,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Inserir o nome padrão do barbeiro 2 se a configuração ainda não existir
+    await db.run("INSERT OR IGNORE INTO configuracoes (chave, valor) VALUES ('barberTwoName', 'Jhonatas')");
+
+    // NOVA TABELA: Serviços (Para o Agendamento)
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS servicos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nome TEXT NOT NULL,
+        preco REAL NOT NULL,
+        status TEXT DEFAULT 'Ativo'
+      )
+    `);
+
     // Migrações de segurança (AGORA INCLUINDO A MIGRAÇÃO DA MANUS PARA A COLUNA ROLE)
     try { await db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'admin'"); } catch (e) {}
     try { await db.exec("ALTER TABLE agendamentos ADD COLUMN forma_pagamento TEXT"); } catch (e) {}
@@ -146,7 +168,7 @@ export const initDatabase = async () => {
       console.log('Usuário admin padrão inserido.');
     }
 
-    // Inserir usuário Yuri se não existir (NOVIDADE IMPLEMENTADA)
+    // Inserir usuário Jhonatas se não existir (NOVIDADE IMPLEMENTADA)
     const jhonatasUser = 'jhonatasma';
     const jhonatasPass = 'majhonatas'; // Senha de acesso para o jhonatas
     const existingJhonatas = await db.get('SELECT * FROM users WHERE username = ?', jhonatasUser);
