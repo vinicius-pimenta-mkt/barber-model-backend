@@ -10,6 +10,8 @@ import agendamentosJhonatasRoutes from './routes/agendamentos-jhonatas.js';
 import relatoriosRoutes from './routes/relatorios.js';
 import assinantesRoutes from './routes/assinantes.js';
 import produtosRoutes from './routes/produtos.js';
+import configuracoesRoutes from './routes/configuracoes.js'; // Rota nova!
+import servicosRoutes from './routes/servicos.js';         // Rota nova!
 
 // Importar inicialização do banco
 import { initDatabase } from './database/database.js';
@@ -58,6 +60,8 @@ app.use('/api/agendamentos-jhonatas', agendamentosJhonatasRoutes);
 app.use('/api/relatorios', relatoriosRoutes);
 app.use('/api/assinantes', assinantesRoutes);
 app.use('/api/produtos', produtosRoutes);
+app.use('/api/configuracoes', configuracoesRoutes); // Usando a rota nova
+app.use('/api/servicos', servicosRoutes);           // Usando a rota nova
 
 // Rota 404 para APIs não encontradas
 app.use('*', (req, res) => {
