@@ -148,6 +148,47 @@ export const initDatabase = async () => {
       )
     `);
 
+    // --- POPULAR SERVIÇOS AUTOMATICAMENTE ---
+    // Verifica se a tabela de serviços está vazia
+    const countServicos = await db.get('SELECT COUNT(*) as count FROM servicos');
+    
+    if (countServicos.count === 0) {
+      console.log('Tabela de serviços vazia. Inserindo serviços padrão...');
+      
+      const servicosPadrao = [
+        { nome: 'Barba', preco: 3000 },
+        { nome: 'Barba + Pézinho', preco: 4000 },
+        { nome: 'Barba + Pigmentação', preco: 5000 },
+        { nome: 'Barba Express', preco: 2000 },
+        { nome: 'Bigode', preco: 1000 },
+        { nome: 'Camuflagem (Fios brancos)', preco: 3500 },
+        { nome: 'Cone Hindu', preco: 2500 },
+        { nome: 'Corte', preco: 4000 },
+        { nome: 'Corte + Pigmentação', preco: 6000 },
+        { nome: 'Corte 1 pente + barba', preco: 5000 },
+        { nome: 'Corte e Barba', preco: 6000 },
+        { nome: 'Corte Infantil', preco: 4500 },
+        { nome: 'Corte Máquina 1 pente', preco: 2500 },
+        { nome: 'Hidratação Capilar', preco: 2500 },
+        { nome: 'Limpeza Nasal', preco: 2500 },
+        { nome: 'Luzes', preco: 10000 },
+        { nome: 'Luzes e Corte', preco: 14000 },
+        { nome: 'Navalhado', preco: 3000 },
+        { nome: 'Navalhado + Barba', preco: 5000 },
+        { nome: 'Pezinho', preco: 1000 },
+        { nome: 'Pigmentação', preco: 2500 },
+        { nome: 'Platinado', preco: 10000 },
+        { nome: 'Platinado e Corte', preco: 14000 },
+        { nome: 'Sobrancelha', preco: 1000 },
+        { nome: 'Sobrancelha na fita', preco: 2500 }
+      ];
+
+      for (const servico of servicosPadrao) {
+        await db.run('INSERT INTO servicos (nome, preco) VALUES (?, ?)', [servico.nome, servico.preco]);
+      }
+      console.log('Serviços padrão populados com sucesso!');
+    }
+
     // Migrações de segurança (AGORA INCLUINDO A MIGRAÇÃO DA MANUS PARA A COLUNA ROLE)
     try { await db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'admin'"); } catch (e) {}
     try { await db.exec("ALTER TABLE agendamentos ADD COLUMN forma_pagamento TEXT"); } catch (e) {}
