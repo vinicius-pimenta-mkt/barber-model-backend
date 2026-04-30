@@ -138,6 +138,9 @@ export const initDatabase = async () => {
     // Inserir o nome padrão do barbeiro 2 se a configuração ainda não existir
     await db.run("INSERT OR IGNORE INTO configuracoes (chave, valor) VALUES ('barberTwoName', 'Jhonatas')");
 
+// --- ATENÇÃO: ESSA LINHA DELETA A TABELA ANTIGA PARA LIMPAR A SUJEIRA ---
+    await db.exec(`DROP TABLE IF EXISTS servicos`);
+
     // NOVA TABELA: Serviços (Para o Agendamento)
     await db.exec(`
       CREATE TABLE IF NOT EXISTS servicos (
@@ -149,7 +152,6 @@ export const initDatabase = async () => {
     `);
 
     // --- POPULAR SERVIÇOS AUTOMATICAMENTE ---
-    // Verifica se a tabela de serviços está vazia
     const countServicos = await db.get('SELECT COUNT(*) as count FROM servicos');
     
     if (countServicos.count === 0) {
