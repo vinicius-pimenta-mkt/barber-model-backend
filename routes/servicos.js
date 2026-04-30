@@ -3,14 +3,19 @@ import { all, query } from '../database/database.js';
 
 const router = express.Router();
 
-// GET: Listar todos os serviços ativos (Para as telas lerem)
+// GET: Listar todos os serviços ativos
 router.get('/', async (req, res) => {
   try {
+    console.log("-> Tentando buscar serviços no banco...");
     const servicos = await all("SELECT * FROM servicos WHERE status = 'Ativo' ORDER BY nome ASC");
     res.json(servicos);
   } catch (error) {
-    console.error('Erro ao buscar serviços:', error);
-    res.status(500).json({ error: 'Erro interno ao buscar serviços' });
+    console.error('❌ ERRO ROTA GET /servicos:', error.message);
+    // AGORA ELE VAI TE MOSTRAR EXATAMENTE O QUE DEU ERRADO
+    res.status(500).json({ 
+        error: 'Erro interno ao buscar serviços',
+        detalhe: error.message 
+    });
   }
 });
 
@@ -22,7 +27,6 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'Nome e preço são obrigatórios' });
   }
 
-  // Converte a string "35,00" que vem do Front para 3500 (centavos) para o Banco
   let precoCentavos = 0;
   if (typeof preco === 'string') {
     const valorFloat = parseFloat(preco.replace(/[^\d.,]/g, '').replace(',', '.'));
@@ -35,8 +39,8 @@ router.post('/', async (req, res) => {
     await query("INSERT INTO servicos (nome, preco) VALUES (?, ?)", [nome, precoCentavos]);
     res.status(201).json({ success: true, message: 'Serviço criado com sucesso' });
   } catch (error) {
-    console.error('Erro ao criar serviço:', error);
-    res.status(500).json({ error: 'Erro ao salvar o serviço no banco de dados' });
+    console.error('❌ ERRO ROTA POST /servicos:', error.message);
+    res.status(500).json({ error: 'Erro ao salvar o serviço', detalhe: error.message });
   }
 });
 
@@ -57,8 +61,8 @@ router.put('/:id', async (req, res) => {
     await query("UPDATE servicos SET nome = ?, preco = ? WHERE id = ?", [nome, precoCentavos, id]);
     res.json({ success: true, message: 'Serviço atualizado com sucesso' });
   } catch (error) {
-    console.error('Erro ao atualizar serviço:', error);
-    res.status(500).json({ error: 'Erro ao atualizar o serviço' });
+    console.error('❌ ERRO ROTA PUT /servicos:', error.message);
+    res.status(500).json({ error: 'Erro ao atualizar o serviço', detalhe: error.message });
   }
 });
 
@@ -67,12 +71,11 @@ router.delete('/:id', async (req, res) => {
   const { id } = req.params;
 
   try {
-    // Exclui o serviço do banco
     await query("DELETE FROM servicos WHERE id = ?", [id]);
     res.json({ success: true, message: 'Serviço excluído com sucesso' });
   } catch (error) {
-    console.error('Erro ao excluir serviço:', error);
-    res.status(500).json({ error: 'Erro ao excluir o serviço' });
+    console.error('❌ ERRO ROTA DELETE /servicos:', error.message);
+    res.status(500).json({ error: 'Erro ao excluir o serviço', detalhe: error.message });
   }
 });
 
