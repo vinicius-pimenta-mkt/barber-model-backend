@@ -3,19 +3,35 @@ import { get, query } from '../database/database.js';
 
 const router = express.Router();
 
-// ROTA PARA BUSCAR UMA CONFIGURAÇÃO (Ex: GET /api/configuracoes/barberTwoName)
+// Middleware tático: Garante que a tabela existe antes de qualquer coisa
+const ensureTableExists = async () => {
+  await query(`
+    CREATE TABLE IF NOT EXISTS configuracoes (
+      chave TEXT PRIMARY KEY,
+      valor TEXT NOT NULL,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+};
+
+// GET: Buscar uma configuração (Ex: /api/configuracoes/barberTwoName)
 router.get('/:chave', async (req, res) => {
   try {
+    await ensureTableExists(); // Tática Blindada
+    
     const row = await get('SELECT valor FROM configuracoes WHERE chave = ?', [req.params.chave]);
-    // Retorna o valor ou "Jhonatas" como segurança caso algo dê errado
-    res.json({ valor: row ? row.valor : 'Jhonatas' });
+    
+    // Fallback de segurança: Se não existir no banco, manda o padrão
+    let valorPadrao = req.params.chave === 'barberOneName' ? 'Miguel' : 'Jhonatas';
+    
+    res.json({ valor: row ? row.valor : valorPadrao });
   } catch (error) {
-    console.error('Erro ao buscar configuração:', error);
-    res.status(500).json({ error: 'Erro ao buscar configuração' });
+    console.error(`❌ ERRO GET /configuracoes/${req.params.chave}:`, error.message);
+    res.status(500).json({ error: 'Erro ao buscar configuração', detalhe: error.message });
   }
 });
 
-// ROTA PARA ATUALIZAR UMA CONFIGURAÇÃO (Ex: PUT /api/configuracoes/barberTwoName)
+// PUT: Atualizar uma configuração
 router.put('/:chave', async (req, res) => {
   const { valor } = req.body;
   
@@ -24,16 +40,17 @@ router.put('/:chave', async (req, res) => {
   }
 
   try {
-    // Atualiza ou insere caso não exista (UPSERT no SQLite)
+    await ensureTableExists(); // Tática Blindada
+    
+    // INSERT OR REPLACE é mais seguro no SQLite do que ON CONFLICT
     await query(
-      `INSERT INTO configuracoes (chave, valor) VALUES (?, ?) 
-       ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor, updated_at = CURRENT_TIMESTAMP`,
+      `INSERT OR REPLACE INTO configuracoes (chave, valor, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)`,
       [req.params.chave, valor]
     );
     res.json({ success: true, message: 'Nome atualizado com sucesso!' });
   } catch (error) {
-    console.error('Erro ao atualizar configuração:', error);
-    res.status(500).json({ error: 'Erro ao atualizar configuração' });
+    console.error(`❌ ERRO PUT /configuracoes/${req.params.chave}:`, error.message);
+    res.status(500).json({ error: 'Erro ao atualizar configuração', detalhe: error.message });
   }
 });
 
