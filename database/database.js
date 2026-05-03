@@ -135,11 +135,9 @@ export const initDatabase = async () => {
       )
     `);
     
-    // Inserir o nome padrão do barbeiro 2 se a configuração ainda não existir
-    await db.run("INSERT OR IGNORE INTO configuracoes (chave, valor) VALUES ('barberTwoName', 'Jhonatas')");
-
-// --- ATENÇÃO: ESSA LINHA DELETA A TABELA ANTIGA PARA LIMPAR A SUJEIRA ---
-    await db.exec(`DROP TABLE IF EXISTS servicos`);
+    // Inserir os nomes padrões dos barbeiros se a configuração ainda não existir
+    await db.run("INSERT OR IGNORE INTO configuracoes (chave, valor) VALUES ('barberOneName', 'Fabrício')");
+    await db.run("INSERT OR IGNORE INTO configuracoes (chave, valor) VALUES ('barberTwoName', 'Gabriel')");
 
     // NOVA TABELA: Serviços (Para o Agendamento)
     await db.exec(`
@@ -191,7 +189,7 @@ export const initDatabase = async () => {
       console.log('Serviços padrão populados com sucesso!');
     }
 
-    // Migrações de segurança (AGORA INCLUINDO A MIGRAÇÃO DA MANUS PARA A COLUNA ROLE)
+    // Migrações de segurança
     try { await db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'admin'"); } catch (e) {}
     try { await db.exec("ALTER TABLE agendamentos ADD COLUMN forma_pagamento TEXT"); } catch (e) {}
     try { await db.exec("ALTER TABLE agendamentos_jhonatas ADD COLUMN forma_pagamento TEXT"); } catch (e) {}
@@ -211,9 +209,9 @@ export const initDatabase = async () => {
       console.log('Usuário admin padrão inserido.');
     }
 
-    // Inserir usuário Jhonatas se não existir (NOVIDADE IMPLEMENTADA)
+    // Inserir usuário Jhonatas se não existir
     const jhonatasUser = 'jhonatasma';
-    const jhonatasPass = 'majhonatas'; // Senha de acesso para o jhonatas
+    const jhonatasPass = 'majhonatas'; // Senha de acesso
     const existingJhonatas = await db.get('SELECT * FROM users WHERE username = ?', jhonatasUser);
     if (!existingJhonatas) {
       await db.run('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', jhonatasUser, jhonatasPass, 'jhonatas');
