@@ -59,22 +59,24 @@ router.get('/resumo', async (req, res) => {
       dataFimStr = data_fim;
     }
 
-    // --- GRÁFICO DE FATURAMENTO: Lógica Inteligente de Agrupamento ---
+    // --- GRÁFICO DE FATURAMENTO ---
     let groupBy = "data";
     let selectPeriodo = "data as periodo";
     
-    // Se o filtro for hoje ou ontem, agrupa por HORA (ex: 14h)
     if (periodo === 'hoje' || periodo === 'ontem') {
       groupBy = "substr(hora, 1, 2)";
       selectPeriodo = "substr(hora, 1, 2) || 'h' as periodo";
     }
 
+    // ADICIONADO: UNION ALL para incluir o Lucas
     const receitaQuery = `
       SELECT ${selectPeriodo}, SUM(COALESCE(preco, 0)) as valor
       FROM (
         SELECT preco, data, hora FROM agendamentos WHERE status = 'Confirmado' ${barber === 'Miguel' || barber === 'Geral' ? '' : 'AND 1=0'}
         UNION ALL
         SELECT preco, data, hora FROM agendamentos_jhonatas WHERE status = 'Confirmado' ${barber === 'Jhonatas' || barber === 'Geral' ? '' : 'AND 1=0'}
+        UNION ALL
+        SELECT preco, data, hora FROM agendamentos_lucas WHERE status = 'Confirmado' ${barber === 'Lucas' || barber === 'Geral' ? '' : 'AND 1=0'}
       )
       WHERE data >= ? AND data <= ?
       GROUP BY ${groupBy}
@@ -84,28 +86,35 @@ router.get('/resumo', async (req, res) => {
     const receita_detalhada = receitaDetalhadaRaw.map(r => ({ ...r, valor: r.valor / 100 }));
 
     // --- SERVIÇOS MAIS VENDIDOS ---
+    // ADICIONADO: Contagem e UNION ALL para o Lucas
     const servicesQuery = `
       SELECT servico as service,
              SUM(CASE WHEN source = 'miguel' THEN 1 ELSE 0 END) as miguel_qty,
-             SUM(CASE WHEN source = 'jhonatas' THEN 1 ELSE 0 END) as jhonatas_qty
+             SUM(CASE WHEN source = 'jhonatas' THEN 1 ELSE 0 END) as jhonatas_qty,
+             SUM(CASE WHEN source = 'lucas' THEN 1 ELSE 0 END) as lucas_qty
       FROM (
         SELECT servico, data, 'miguel' as source FROM agendamentos WHERE status = 'Confirmado'
         UNION ALL
         SELECT servico, data, 'jhonatas' as source FROM agendamentos_jhonatas WHERE status = 'Confirmado'
+        UNION ALL
+        SELECT servico, data, 'lucas' as source FROM agendamentos_lucas WHERE status = 'Confirmado'
       )
       WHERE data >= ? AND data <= ?
       GROUP BY servico
-      ORDER BY (miguel_qty + jhonatas_qty) DESC
+      ORDER BY (miguel_qty + jhonatas_qty + lucas_qty) DESC
     `;
     const by_service = await all(servicesQuery, [dataInicioStr, dataFimStr]);
 
     // --- TOP CLIENTES ---
+    // ADICIONADO: UNION ALL para incluir o Lucas
     const clientsQuery = `
       SELECT cliente_nome as name, COUNT(*) as visits, SUM(COALESCE(preco, 0)) as spent
       FROM (
         SELECT cliente_nome, preco, data FROM agendamentos WHERE status = 'Confirmado' ${barber === 'Miguel' || barber === 'Geral' ? '' : 'AND 1=0'}
         UNION ALL
         SELECT cliente_nome, preco, data FROM agendamentos_jhonatas WHERE status = 'Confirmado' ${barber === 'Jhonatas' || barber === 'Geral' ? '' : 'AND 1=0'}
+        UNION ALL
+        SELECT cliente_nome, preco, data FROM agendamentos_lucas WHERE status = 'Confirmado' ${barber === 'Lucas' || barber === 'Geral' ? '' : 'AND 1=0'}
       )
       WHERE data >= ? AND data <= ?
       GROUP BY cliente_nome
@@ -116,12 +125,15 @@ router.get('/resumo', async (req, res) => {
     const top_clients = top_clients_raw.map(c => ({ ...c, spent: c.spent / 100 }));
 
     // --- PAGAMENTOS ---
+    // ADICIONADO: UNION ALL para incluir o Lucas
     const paymentsQuery = `
       SELECT forma_pagamento as forma, SUM(COALESCE(preco, 0)) as valor, COUNT(*) as quantidade
       FROM (
         SELECT forma_pagamento, preco, data FROM agendamentos WHERE status = 'Confirmado' ${barber === 'Miguel' || barber === 'Geral' ? '' : 'AND 1=0'}
         UNION ALL
         SELECT forma_pagamento, preco, data FROM agendamentos_jhonatas WHERE status = 'Confirmado' ${barber === 'Jhonatas' || barber === 'Geral' ? '' : 'AND 1=0'}
+        UNION ALL
+        SELECT forma_pagamento, preco, data FROM agendamentos_lucas WHERE status = 'Confirmado' ${barber === 'Lucas' || barber === 'Geral' ? '' : 'AND 1=0'}
       )
       WHERE data >= ? AND data <= ?
       GROUP BY forma_pagamento
@@ -136,7 +148,7 @@ router.get('/resumo', async (req, res) => {
     });
     const by_payment = Object.values(groupedPayments).sort((a, b) => b.valor - a.valor);
 
-    // --- PRODUTOS ---
+    // --- PRODUTOS --- (Não precisa de alteração, pois não é atrelado a barbeiro específico)
     const produtosQuery = `
       SELECT p.nome as produto, h.forma_pagamento, SUM(h.quantidade) as qty, SUM(h.valor_total) as revenue
       FROM produtos_historico h
@@ -166,13 +178,13 @@ router.get('/resumo', async (req, res) => {
   }
 });
 
-// Dashboard (Mantido igual)
+// Dashboard 
 router.get('/dashboard', async (req, res) => {
   try {
     const { dataStr: hojeStr, horaStr: agoraHora } = getBrasiliaTime();
 
     let stats;
-    // Puxa as estatísticas unificadas
+    // ADICIONADO: UNION ALL para unir as 3 tabelas no resumo principal do Dashboard
     stats = await get(`
       SELECT 
         COUNT(*) as total,
@@ -183,15 +195,20 @@ router.get('/dashboard', async (req, res) => {
         SELECT status, preco, data, hora FROM agendamentos WHERE data = ? AND status NOT IN ('Cancelado', 'Bloqueado')
         UNION ALL
         SELECT status, preco, data, hora FROM agendamentos_jhonatas WHERE data = ? AND status NOT IN ('Cancelado', 'Bloqueado')
+        UNION ALL
+        SELECT status, preco, data, hora FROM agendamentos_lucas WHERE data = ? AND status NOT IN ('Cancelado', 'Bloqueado')
       )
-    `, [agoraHora, agoraHora, agoraHora, hojeStr, hojeStr]);
+    `, [agoraHora, agoraHora, agoraHora, hojeStr, hojeStr, hojeStr]);
 
+    // ADICIONADO: UNION ALL para unir as 3 tabelas na lista visual do Dashboard
     const agendamentos = await all(`
       SELECT id, cliente_nome, servico, hora, status, data, 'Miguel' as barber FROM agendamentos WHERE data >= ? AND status NOT IN ('Cancelado', 'Bloqueado')
       UNION ALL
       SELECT id, cliente_nome, servico, hora, status, data, 'Jhonatas' as barber FROM agendamentos_jhonatas WHERE data >= ? AND status NOT IN ('Cancelado', 'Bloqueado')
+      UNION ALL
+      SELECT id, cliente_nome, servico, hora, status, data, 'Lucas' as barber FROM agendamentos_lucas WHERE data >= ? AND status NOT IN ('Cancelado', 'Bloqueado')
       ORDER BY data ASC, hora ASC
-    `, [hojeStr, hojeStr]);
+    `, [hojeStr, hojeStr, hojeStr]);
 
     res.json({
       atendimentosHoje: stats.total || 0,
