@@ -9,6 +9,8 @@ import agendamentosRoutes from './routes/agendamentos.js';
 import agendamentosJhonatasRoutes from './routes/agendamentos-jhonatas.js';
 import agendamentosLucasRoutes from './routes/agendamentos-lucas.js'; // <-- NOVA ROTA DO LUCAS AQUI
 import relatoriosRoutes from './routes/relatorios.js';
+import relatoriosJhonatasRoutes from './routes/relatorios-jhonatas.js'; // <-- ROTA DE RELATÓRIOS DO GABRIEL
+import relatoriosLucasRoutes from './routes/relatorios-lucas.js';       // <-- ROTA DE RELATÓRIOS DO LUCAS
 import assinantesRoutes from './routes/assinantes.js';
 import produtosRoutes from './routes/produtos.js';
 import configuracoesRoutes from './routes/configuracoes.js'; 
@@ -53,6 +55,8 @@ app.use('/api/agendamentos', agendamentosRoutes);
 app.use('/api/agendamentos-jhonatas', agendamentosJhonatasRoutes);
 app.use('/api/agendamentos-lucas', agendamentosLucasRoutes); // <-- REGISTRO DA ROTA DO LUCAS
 app.use('/api/relatorios', relatoriosRoutes);
+app.use('/api/relatorios-jhonatas', relatoriosJhonatasRoutes); // <-- REGISTRO DA ROTA DE RELATÓRIOS DO GABRIEL
+app.use('/api/relatorios-lucas', relatoriosLucasRoutes);       // <-- REGISTRO DA ROTA DE RELATÓRIOS DO LUCAS
 app.use('/api/assinantes', assinantesRoutes);
 app.use('/api/produtos', produtosRoutes);
 app.use('/api/configuracoes', configuracoesRoutes); 
