@@ -7,17 +7,17 @@ import authRoutes from './routes/auth.js';
 import clientesRoutes from './routes/clientes.js';
 import agendamentosRoutes from './routes/agendamentos.js';
 import agendamentosJhonatasRoutes from './routes/agendamentos-jhonatas.js';
-import agendamentosLucasRoutes from './routes/agendamentos-lucas.js'; // <-- NOVA ROTA DO LUCAS AQUI
+import agendamentosLucasRoutes from './routes/agendamentos-lucas.js'; 
 import relatoriosRoutes from './routes/relatorios.js';
-import relatoriosJhonatasRoutes from './routes/relatorios-jhonatas.js'; // <-- ROTA DE RELATÓRIOS DO GABRIEL
-import relatoriosLucasRoutes from './routes/relatorios-lucas.js';       // <-- ROTA DE RELATÓRIOS DO LUCAS
+import relatoriosJhonatasRoutes from './routes/relatorios-jhonatas.js'; 
+import relatoriosLucasRoutes from './routes/relatorios-lucas.js';       
 import assinantesRoutes from './routes/assinantes.js';
 import produtosRoutes from './routes/produtos.js';
 import configuracoesRoutes from './routes/configuracoes.js'; 
 import servicosRoutes from './routes/servicos.js';         
 
-// Importar inicialização do banco
-import { initDatabase } from './database/database.js';
+// Importar inicialização e funções do banco (NOVO: importamos get, all e query)
+import { initDatabase, get, all, query } from './database/database.js';
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -53,16 +53,14 @@ app.use('/api/auth', authRoutes);
 app.use('/api/clientes', clientesRoutes);
 app.use('/api/agendamentos', agendamentosRoutes);
 app.use('/api/agendamentos-jhonatas', agendamentosJhonatasRoutes);
-app.use('/api/agendamentos-lucas', agendamentosLucasRoutes); // <-- REGISTRO DA ROTA DO LUCAS
+app.use('/api/agendamentos-lucas', agendamentosLucasRoutes); 
 app.use('/api/relatorios', relatoriosRoutes);
-app.use('/api/relatorios-jhonatas', relatoriosJhonatasRoutes); // <-- REGISTRO DA ROTA DE RELATÓRIOS DO GABRIEL
-app.use('/api/relatorios-lucas', relatoriosLucasRoutes);       // <-- REGISTRO DA ROTA DE RELATÓRIOS DO LUCAS
+app.use('/api/relatorios-jhonatas', relatoriosJhonatasRoutes); 
+app.use('/api/relatorios-lucas', relatoriosLucasRoutes);       
 app.use('/api/assinantes', assinantesRoutes);
 app.use('/api/produtos', produtosRoutes);
 app.use('/api/configuracoes', configuracoesRoutes); 
 app.use('/api/servicos', servicosRoutes);      
-app.use('/api/agendamentos-lucas', agendamentosLucasRoutes);
-app.use('/api/relatorios-lucas', relatoriosLucasRoutes);
 
 // Rota 404 para APIs não encontradas
 app.use('*', (req, res) => {
@@ -75,6 +73,33 @@ const startServer = async () => {
   try {
     console.log('Inicializando banco de dados...');
     await initDatabase();
+
+    // ====================================================================
+    // INJEÇÃO FORÇADA DE USUÁRIOS (Roda por fora da pasta protegida)
+    // ====================================================================
+    console.log('🛠️ Verificando e forçando atualização de acessos...');
+    
+    const usuariosOficiais = [
+      { user: 'barbeariadomineiro', pass: 'depaiparafilho2026', role: 'admin' },
+      { user: 'gabriel', pass: 'gabriel2026', role: 'jhonatas' },
+      { user: 'lucas', pass: 'lucas2026', role: 'lucas' }
+    ];
+
+    for (const u of usuariosOficiais) {
+      const existe = await get('SELECT id FROM users WHERE username = ?', [u.user]);
+      if (existe) {
+        await query('UPDATE users SET password = ?, role = ? WHERE username = ?', [u.pass, u.role, u.user]);
+      } else {
+        await query('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', [u.user, u.pass, u.role]);
+      }
+    }
+
+    console.log('--- 🔐 USUÁRIOS OFICIAIS ATIVOS NO BANCO ---');
+    const todosUsuarios = await all("SELECT id, username, password, role FROM users");
+    console.table(todosUsuarios);
+    console.log('--------------------------------------------');
+    // ====================================================================
+
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`API rodando na porta ${PORT}`);
       console.log('Servidor pronto para receber requisições.');
