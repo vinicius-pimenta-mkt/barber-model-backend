@@ -21,12 +21,13 @@ const db = new sqlite3.Database(dbPath, (err) => {
 // Criar tabelas
 const initDatabase = () => {
   return new Promise((resolve, reject) => {
-    // Tabela de usuários (admin)
+    // Tabela de usuários
     db.run(`
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
+        role TEXT DEFAULT 'admin',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `, (err) => {
@@ -35,6 +36,9 @@ const initDatabase = () => {
         reject(err);
         return;
       }
+
+      // Vacina de segurança: adiciona a coluna role se ela não existir no seu banco antigo
+      db.run(`ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'admin'`, () => {});
 
       // Tabela de clientes
       db.run(`
@@ -69,31 +73,42 @@ const initDatabase = () => {
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (cliente_id) REFERENCES clientes (id)
           )
-        `, (err) => {
+        `, async (err) => {
           if (err) {
             console.error('Erro ao criar tabela agendamentos:', err);
             reject(err);
             return;
           }
 
-          // Inserir usuário admin padrão
-          const adminUser = process.env.ADMIN_USER || 'adminbm';
-          const adminPass = process.env.ADMIN_PASS || 'belmasc2026';
+          // Acessos e senhas
+          const adminUser = process.env.ADMIN_USER || 'barbeariadomineiro';
+          const adminPass = process.env.ADMIN_PASS || 'depaiparafilho2026';
           
-          db.run(`
-            INSERT OR IGNORE INTO users (username, password) 
-            VALUES (?, ?)
-          `, [adminUser, adminPass], (err) => {
-            if (err) {
-              console.error('Erro ao inserir usuário admin:', err);
-              reject(err);
-              return;
-            }
-            
-            console.log('Banco de dados inicializado com sucesso!');
+          // 1. Inserir Admin Oficial (Fabrício)
+          db.run(
+            `INSERT OR IGNORE INTO users (username, password, role) VALUES (?, ?, ?)`, 
+            [adminUser, adminPass, 'admin']
+          );
+
+          // 2. Inserir Barbeiro Gabriel (Usa a rota Jhonatas internamente)
+          db.run(
+            `INSERT OR IGNORE INTO users (username, password, role) VALUES (?, ?, ?)`, 
+            ['gabriel', 'gabrielbarber2026', 'jhonatas']
+          );
+
+          // 3. Inserir Barbeiro Lucas (Usa a nova rota Lucas)
+          db.run(
+            `INSERT OR IGNORE INTO users (username, password, role) VALUES (?, ?, ?)`, 
+            ['lucas', 'lucasbarber2026', 'lucas']
+          );
+          
+          console.log('Banco de dados inicializado com sucesso e acessos atualizados!');
+          try {
             await seedDatabase();
-            resolve();
-          });
+          } catch (e) {
+            // Ignora se o arquivo seed não existir
+          }
+          resolve();
         });
       });
     });
@@ -104,4 +119,3 @@ const initDatabase = () => {
 initDatabase().catch(console.error);
 
 export default db;
-
