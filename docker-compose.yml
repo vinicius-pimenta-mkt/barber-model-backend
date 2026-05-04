@@ -8,8 +8,8 @@ services:
     environment:
       PORT: "3000"
       JWT_SECRET: "019283"
-      ADMIN_USER: "miguelalves"
-      ADMIN_PASS: "barbershopma"
+      ADMIN_USER: "barbeariadomineiro"
+      ADMIN_PASS: "depaiparafilho2026"
     volumes:
       - dados_miguel:/app/database
     labels:
