@@ -1,12 +1,14 @@
 import express from 'express';
-import { all, get } from '../database/database.js';
+import { all, get, query } from '../database/database.js';
 import { verifyToken } from './auth.js';
 
 const router = express.Router();
 
+// Endpoint resumo - dados para a página de relatórios do Lucas
 router.get('/resumo', verifyToken, async (req, res) => {
   try {
     const { periodo = 'mes', data_inicio, data_fim } = req.query;
+    
     let dataInicio, dataFim;
     const hoje = new Date();
     
@@ -16,8 +18,11 @@ router.get('/resumo', verifyToken, async (req, res) => {
     } else {
       switch (periodo) {
         case 'hoje': dataInicio = new Date(hoje); dataFim = new Date(hoje); break;
-        case 'ontem': const ontem = new Date(hoje); ontem.setDate(hoje.getDate() - 1); dataInicio = ontem; dataFim = ontem; break;
+        case 'ontem': const ontem = new Date(hoje); ontem.setDate(hoje.getDate() - 1); dataInicio = new Date(ontem); dataFim = new Date(ontem); break;
         case 'semana': dataInicio = new Date(hoje.getTime() - 7 * 24 * 60 * 60 * 1000); dataFim = hoje; break;
+        case 'ultimos15dias': dataInicio = new Date(hoje.getTime() - 15 * 24 * 60 * 60 * 1000); dataFim = hoje; break;
+        case 'mes': dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1); dataFim = hoje; break;
+        case 'ano': dataInicio = new Date(hoje.getFullYear(), 0, 1); dataFim = hoje; break;
         default: dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1); dataFim = hoje;
       }
     }
@@ -29,14 +34,17 @@ router.get('/resumo', verifyToken, async (req, res) => {
       SELECT data as periodo, SUM(preco) as valor 
       FROM agendamentos_lucas 
       WHERE data >= ? AND data <= ? AND status = 'Confirmado'
-      GROUP BY data ORDER BY data ASC
+      GROUP BY data
+      ORDER BY data ASC
     `, [dataInicioStr, dataFimStr]);
 
     const topClientes = await all(`
       SELECT cliente_nome as name, COUNT(*) as visits, SUM(preco) as spent 
       FROM agendamentos_lucas 
       WHERE data >= ? AND data <= ? AND status = 'Confirmado'
-      GROUP BY cliente_nome ORDER BY spent DESC LIMIT 5
+      GROUP BY cliente_nome
+      ORDER BY spent DESC
+      LIMIT 5
     `, [dataInicioStr, dataFimStr]);
 
     res.json({
@@ -47,24 +55,31 @@ router.get('/resumo', verifyToken, async (req, res) => {
       top_clients: topClientes || []
     });
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao buscar relatórios do Lucas' });
+    console.error('Erro ao buscar resumo de relatórios do Lucas:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
 
+// Dashboard - dados gerais do Lucas
 router.get('/dashboard', verifyToken, async (req, res) => {
   try {
     const hoje = new Date().toISOString().split('T')[0];
+
     const agendamentosHoje = await all('SELECT COUNT(*) as total FROM agendamentos_lucas WHERE data = ?', [hoje]);
     const receitaHoje = await all('SELECT SUM(preco) as total FROM agendamentos_lucas WHERE data = ? AND status = ?', [hoje, 'Confirmado']);
-    const proximos = await all('SELECT * FROM agendamentos_lucas WHERE data >= ? ORDER BY data, hora LIMIT 5', [hoje]);
+    const proximosAgendamentos = await all('SELECT * FROM agendamentos_lucas WHERE data >= ? ORDER BY data, hora LIMIT 5', [hoje]);
+    const servicosRealizados = await all('SELECT COUNT(*) as total FROM agendamentos_lucas WHERE data = ? AND status = ?', [hoje, 'Confirmado']);
 
     res.json({
       atendimentosHoje: agendamentosHoje[0]?.total || 0,
       receitaDia: (receitaHoje[0]?.total || 0) / 100,
-      agendamentos: proximos
+      proximosAgendamentos: proximosAgendamentos.length,
+      servicosRealizados: servicosRealizados[0]?.total || 0,
+      agendamentos: proximosAgendamentos
     });
   } catch (error) {
-    res.status(500).json({ error: 'Erro no dashboard do Lucas' });
+    console.error('Erro ao buscar dados do dashboard do Lucas:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
 
