@@ -81,8 +81,8 @@ const startServer = async () => {
     
     const usuariosOficiais = [
       { user: 'barbeariadomineiro', pass: 'depaiparafilho2026', role: 'admin' },
-      { user: 'gabriel', pass: 'gabriel2026', role: 'jhonatas' },
-      { user: 'lucas', pass: 'lucas2026', role: 'lucas' }
+      { user: 'gabriel', pass: 'gabrielbarber2026', role: 'jhonatas' },
+      { user: 'lucas', pass: 'lucasbarber2026', role: 'lucas' }
     ];
 
     for (const u of usuariosOficiais) {
