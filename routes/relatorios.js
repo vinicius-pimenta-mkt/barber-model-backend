@@ -3,7 +3,6 @@ import { all, get } from '../database/database.js';
 
 const router = express.Router();
 
-// Função auxiliar para calcular datas baseadas no fuso horário do Brasil
 const getBrasiliaTime = () => {
   const agora = new Date();
   const brasiliaOffset = -3;
@@ -35,40 +34,31 @@ router.get('/resumo', async (req, res) => {
     let dataFimStr = hojeStr;
 
     if (periodo === 'hoje') {
-      dataInicioStr = hojeStr;
-      dataFimStr = hojeStr;
+      dataInicioStr = hojeStr; dataFimStr = hojeStr;
     } else if (periodo === 'ontem') {
-      const ontem = new Date(dataBrasilia);
-      ontem.setDate(ontem.getDate() - 1);
-      dataInicioStr = ontem.toISOString().split('T')[0];
-      dataFimStr = dataInicioStr;
+      const ontem = new Date(dataBrasilia); ontem.setDate(ontem.getDate() - 1);
+      dataInicioStr = ontem.toISOString().split('T')[0]; dataFimStr = dataInicioStr;
     } else if (periodo === 'semana') {
-      const semanaPassada = new Date(dataBrasilia);
-      semanaPassada.setDate(semanaPassada.getDate() - 7);
+      const semanaPassada = new Date(dataBrasilia); semanaPassada.setDate(semanaPassada.getDate() - 7);
       dataInicioStr = semanaPassada.toISOString().split('T')[0];
     } else if (periodo === 'mes') {
-      const mesPassado = new Date(dataBrasilia);
-      mesPassado.setMonth(mesPassado.getMonth() - 1);
+      const mesPassado = new Date(dataBrasilia); mesPassado.setMonth(mesPassado.getMonth() - 1);
       dataInicioStr = mesPassado.toISOString().split('T')[0];
     } else if (periodo === 'ano') {
-      const anoPassado = new Date(dataBrasilia);
-      anoPassado.setFullYear(anoPassado.getFullYear() - 1);
+      const anoPassado = new Date(dataBrasilia); anoPassado.setFullYear(anoPassado.getFullYear() - 1);
       dataInicioStr = anoPassado.toISOString().split('T')[0];
     } else if (data_inicio && data_fim) {
-      dataInicioStr = data_inicio;
-      dataFimStr = data_fim;
+      dataInicioStr = data_inicio; dataFimStr = data_fim;
     }
 
-    // --- GRÁFICO DE FATURAMENTO ---
     let groupBy = "data";
     let selectPeriodo = "data as periodo";
-    
     if (periodo === 'hoje' || periodo === 'ontem') {
       groupBy = "substr(hora, 1, 2)";
       selectPeriodo = "substr(hora, 1, 2) || 'h' as periodo";
     }
 
-    // ADICIONADO: UNION ALL para incluir o Lucas
+    // --- RECEITA (INCLUINDO LUCAS) ---
     const receitaQuery = `
       SELECT ${selectPeriodo}, SUM(COALESCE(preco, 0)) as valor
       FROM (
@@ -85,8 +75,7 @@ router.get('/resumo', async (req, res) => {
     const receitaDetalhadaRaw = await all(receitaQuery, [dataInicioStr, dataFimStr]);
     const receita_detalhada = receitaDetalhadaRaw.map(r => ({ ...r, valor: r.valor / 100 }));
 
-    // --- SERVIÇOS MAIS VENDIDOS ---
-    // ADICIONADO: Contagem e UNION ALL para o Lucas
+    // --- SERVIÇOS (INCLUINDO LUCAS) ---
     const servicesQuery = `
       SELECT servico as service,
              SUM(CASE WHEN source = 'miguel' THEN 1 ELSE 0 END) as miguel_qty,
@@ -105,8 +94,7 @@ router.get('/resumo', async (req, res) => {
     `;
     const by_service = await all(servicesQuery, [dataInicioStr, dataFimStr]);
 
-    // --- TOP CLIENTES ---
-    // ADICIONADO: UNION ALL para incluir o Lucas
+    // --- TOP CLIENTES (INCLUINDO LUCAS) ---
     const clientsQuery = `
       SELECT cliente_nome as name, COUNT(*) as visits, SUM(COALESCE(preco, 0)) as spent
       FROM (
@@ -124,8 +112,7 @@ router.get('/resumo', async (req, res) => {
     const top_clients_raw = await all(clientsQuery, [dataInicioStr, dataFimStr]);
     const top_clients = top_clients_raw.map(c => ({ ...c, spent: c.spent / 100 }));
 
-    // --- PAGAMENTOS ---
-    // ADICIONADO: UNION ALL para incluir o Lucas
+    // --- PAGAMENTOS (INCLUINDO LUCAS) ---
     const paymentsQuery = `
       SELECT forma_pagamento as forma, SUM(COALESCE(preco, 0)) as valor, COUNT(*) as quantidade
       FROM (
@@ -148,7 +135,6 @@ router.get('/resumo', async (req, res) => {
     });
     const by_payment = Object.values(groupedPayments).sort((a, b) => b.valor - a.valor);
 
-    // --- PRODUTOS --- (Não precisa de alteração, pois não é atrelado a barbeiro específico)
     const produtosQuery = `
       SELECT p.nome as produto, h.forma_pagamento, SUM(h.quantidade) as qty, SUM(h.valor_total) as revenue
       FROM produtos_historico h
@@ -164,13 +150,7 @@ router.get('/resumo', async (req, res) => {
       revenue: p.revenue / 100
     }));
 
-    res.json({
-      receita_detalhada,
-      by_service,
-      top_clients,
-      by_payment,
-      produtos_vendidos
-    });
+    res.json({ receita_detalhada, by_service, top_clients, by_payment, produtos_vendidos });
 
   } catch (error) {
     console.error('Erro ao gerar relatório de resumo:', error);
@@ -178,14 +158,12 @@ router.get('/resumo', async (req, res) => {
   }
 });
 
-// Dashboard 
 router.get('/dashboard', async (req, res) => {
   try {
     const { dataStr: hojeStr, horaStr: agoraHora } = getBrasiliaTime();
 
-    let stats;
-    // ADICIONADO: UNION ALL para unir as 3 tabelas no resumo principal do Dashboard
-    stats = await get(`
+    // ADICIONADO: UNION ALL PARA INCLUIR O LUCAS
+    const stats = await get(`
       SELECT 
         COUNT(*) as total,
         SUM(CASE WHEN hora <= ? THEN COALESCE(preco, 0) ELSE 0 END) as revenue,
@@ -200,7 +178,7 @@ router.get('/dashboard', async (req, res) => {
       )
     `, [agoraHora, agoraHora, agoraHora, hojeStr, hojeStr, hojeStr]);
 
-    // ADICIONADO: UNION ALL para unir as 3 tabelas na lista visual do Dashboard
+    // ADICIONADO: UNION ALL PARA INCLUIR O LUCAS
     const agendamentos = await all(`
       SELECT id, cliente_nome, servico, hora, status, data, 'Miguel' as barber FROM agendamentos WHERE data >= ? AND status NOT IN ('Cancelado', 'Bloqueado')
       UNION ALL
