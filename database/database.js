@@ -19,6 +19,7 @@ export const initDatabase = async () => {
       driver: sqlite3.Database
     });
 
+    // Tabela de usuários
     await db.exec(`
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,6 +30,7 @@ export const initDatabase = async () => {
       )
     `);
 
+    // Tabela de clientes
     await db.exec(`
       CREATE TABLE IF NOT EXISTS clientes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,6 +43,7 @@ export const initDatabase = async () => {
       )
     `);
 
+    // Tabela de agendamentos - Admin/Geral
     await db.exec(`
       CREATE TABLE IF NOT EXISTS agendamentos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,6 +63,7 @@ export const initDatabase = async () => {
       )
     `);
 
+    // Tabela de agendamentos - Gabriel (Jhonatas no banco)
     await db.exec(`
       CREATE TABLE IF NOT EXISTS agendamentos_jhonatas (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,6 +83,7 @@ export const initDatabase = async () => {
       )
     `);
 
+    // Tabela de agendamentos - Lucas
     await db.exec(`
       CREATE TABLE IF NOT EXISTS agendamentos_lucas (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -98,6 +103,7 @@ export const initDatabase = async () => {
       )
     `);
 
+    // Tabela de Assinantes
     await db.exec(`
       CREATE TABLE IF NOT EXISTS assinantes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -115,6 +121,7 @@ export const initDatabase = async () => {
       )
     `);
 
+    // Tabela de Produtos
     await db.exec(`
       CREATE TABLE IF NOT EXISTS produtos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -125,6 +132,7 @@ export const initDatabase = async () => {
       )
     `);
 
+    // Tabela Histórico Produtos
     await db.exec(`
       CREATE TABLE IF NOT EXISTS produtos_historico (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -134,10 +142,12 @@ export const initDatabase = async () => {
         valor_total REAL,
         forma_pagamento TEXT,
         data DATETIME DEFAULT CURRENT_TIMESTAMP,
+        hora TEXT,
         FOREIGN KEY (produto_id) REFERENCES produtos(id)
       )
     `);
 
+    // Tabela de Configurações
     await db.exec(`
       CREATE TABLE IF NOT EXISTS configuracoes (
         chave TEXT PRIMARY KEY,
@@ -146,10 +156,12 @@ export const initDatabase = async () => {
       )
     `);
     
+    // Inserir os nomes de exibição caso não existam
     await db.run("INSERT OR IGNORE INTO configuracoes (chave, valor) VALUES ('barberOneName', 'Fabrício')");
     await db.run("INSERT OR IGNORE INTO configuracoes (chave, valor) VALUES ('barberTwoName', 'Gabriel')");
     await db.run("INSERT OR IGNORE INTO configuracoes (chave, valor) VALUES ('barberThreeName', 'Lucas')");
 
+    // Tabela de Serviços
     await db.exec(`
       CREATE TABLE IF NOT EXISTS servicos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -159,6 +171,7 @@ export const initDatabase = async () => {
       )
     `);
 
+    // Migrações de segurança
     try { await db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'admin'"); } catch (e) {}
     try { await db.exec("ALTER TABLE agendamentos ADD COLUMN forma_pagamento TEXT"); } catch (e) {}
     try { await db.exec("ALTER TABLE agendamentos_jhonatas ADD COLUMN forma_pagamento TEXT"); } catch (e) {}
@@ -170,22 +183,47 @@ export const initDatabase = async () => {
     try { await db.exec("ALTER TABLE assinantes ADD COLUMN telefone TEXT"); } catch (e) {}
     try { await db.exec("ALTER TABLE clientes ADD COLUMN cpf TEXT"); } catch (e) {}
 
-    const adminUser = 'fabricioadmin'; const adminPass = 'senha1234';     
-    const existingUser = await db.get('SELECT * FROM users WHERE role = ?', 'admin');
-    if (!existingUser) await db.run('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', adminUser, adminPass, 'admin');
-    else await db.run('UPDATE users SET username = ?, password = ? WHERE role = ?', adminUser, adminPass, 'admin');
+    // ==========================================
+    // 1. Inserir usuário Admin
+    // ==========================================
+    const adminUser = process.env.ADMIN_USER || 'barbeariadomineiro';
+    const adminPass = process.env.ADMIN_PASS || 'depaiparafilho2026';
+    const existingAdmin = await db.get('SELECT * FROM users WHERE username = ?', adminUser);
+    if (!existingAdmin) {
+      await db.run('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', adminUser, adminPass, 'admin');
+      console.log('Usuário admin inserido.');
+    } else {
+      // Força a atualização caso a senha ou a role estejam desatualizadas
+      await db.run('UPDATE users SET password = ?, role = ? WHERE username = ?', adminPass, 'admin', adminUser);
+    }
 
-    const gabrielUser = 'gabrielbarber'; const gabrielPass = 'senha5678';     
-    const existingGabriel = await db.get('SELECT * FROM users WHERE role = ?', 'jhonatas');
-    if (!existingGabriel) await db.run('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', gabrielUser, gabrielPass, 'jhonatas');
-    else await db.run('UPDATE users SET username = ?, password = ? WHERE role = ?', gabrielUser, gabrielPass, 'jhonatas');
+    // ==========================================
+    // 2. Inserir usuário Gabriel
+    // ==========================================
+    const gabrielUser = 'gabriel';
+    const gabrielPass = 'gabrielbarber2026';
+    const existingGabriel = await db.get('SELECT * FROM users WHERE username = ?', gabrielUser);
+    if (!existingGabriel) {
+      await db.run('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', gabrielUser, gabrielPass, 'jhonatas');
+      console.log('Usuário Gabriel inserido.');
+    } else {
+      await db.run('UPDATE users SET password = ?, role = ? WHERE username = ?', gabrielPass, 'jhonatas', gabrielUser);
+    }
 
-    const lucasUser = 'lucasbarber'; const lucasPass = 'senha9999';
-    const existingLucas = await db.get('SELECT * FROM users WHERE role = ?', 'lucas');
-    if (!existingLucas) await db.run('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', lucasUser, lucasPass, 'lucas');
-    else await db.run('UPDATE users SET username = ?, password = ? WHERE role = ?', lucasUser, lucasPass, 'lucas');
+    // ==========================================
+    // 3. Inserir usuário Lucas
+    // ==========================================
+    const lucasUser = 'lucas';
+    const lucasPass = 'lucasbarber2026';
+    const existingLucas = await db.get('SELECT * FROM users WHERE username = ?', lucasUser);
+    if (!existingLucas) {
+      await db.run('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', lucasUser, lucasPass, 'lucas');
+      console.log('Usuário Lucas inserido.');
+    } else {
+      await db.run('UPDATE users SET password = ?, role = ? WHERE username = ?', lucasPass, 'lucas', lucasUser);
+    }
 
-    console.log('Banco inicializado e preparado!');
+    console.log('Banco de dados SQLite inicializado com sucesso!');
   } catch (error) {
     console.error('Erro ao inicializar banco de dados SQLite:', error);
     throw error;
