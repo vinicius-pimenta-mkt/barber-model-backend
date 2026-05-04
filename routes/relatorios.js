@@ -1,7 +1,29 @@
 import express from 'express';
-import { all, get } from '../database/database.js';
+import { all, get, query } from '../database/database.js';
 
 const router = express.Router();
+
+const ensureLucasTableExists = async () => {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS agendamentos_lucas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cliente_id INTEGER,
+        cliente_nome TEXT NOT NULL,
+        cliente_telefone TEXT,
+        servico TEXT NOT NULL,
+        data TEXT NOT NULL,
+        hora TEXT NOT NULL,
+        status TEXT DEFAULT 'Pendente',
+        preco REAL,
+        forma_pagamento TEXT,
+        observacoes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  } catch (error) { console.error("Erro na trava do Lucas:", error); }
+};
 
 const getBrasiliaTime = () => {
   const agora = new Date();
@@ -27,6 +49,7 @@ const padronizarPagamento = (forma) => {
 
 router.get('/resumo', async (req, res) => {
   try {
+    await ensureLucasTableExists();
     let { periodo = 'mes', data_inicio, data_fim, barber = 'Geral' } = req.query;
 
     const { dataStr: hojeStr, dataBrasilia } = getBrasiliaTime();
@@ -34,31 +57,38 @@ router.get('/resumo', async (req, res) => {
     let dataFimStr = hojeStr;
 
     if (periodo === 'hoje') {
-      dataInicioStr = hojeStr; dataFimStr = hojeStr;
+      dataInicioStr = hojeStr;
+      dataFimStr = hojeStr;
     } else if (periodo === 'ontem') {
-      const ontem = new Date(dataBrasilia); ontem.setDate(ontem.getDate() - 1);
-      dataInicioStr = ontem.toISOString().split('T')[0]; dataFimStr = dataInicioStr;
+      const ontem = new Date(dataBrasilia);
+      ontem.setDate(ontem.getDate() - 1);
+      dataInicioStr = ontem.toISOString().split('T')[0];
+      dataFimStr = dataInicioStr;
     } else if (periodo === 'semana') {
-      const semanaPassada = new Date(dataBrasilia); semanaPassada.setDate(semanaPassada.getDate() - 7);
+      const semanaPassada = new Date(dataBrasilia);
+      semanaPassada.setDate(semanaPassada.getDate() - 7);
       dataInicioStr = semanaPassada.toISOString().split('T')[0];
     } else if (periodo === 'mes') {
-      const mesPassado = new Date(dataBrasilia); mesPassado.setMonth(mesPassado.getMonth() - 1);
+      const mesPassado = new Date(dataBrasilia);
+      mesPassado.setMonth(mesPassado.getMonth() - 1);
       dataInicioStr = mesPassado.toISOString().split('T')[0];
     } else if (periodo === 'ano') {
-      const anoPassado = new Date(dataBrasilia); anoPassado.setFullYear(anoPassado.getFullYear() - 1);
+      const anoPassado = new Date(dataBrasilia);
+      anoPassado.setFullYear(anoPassado.getFullYear() - 1);
       dataInicioStr = anoPassado.toISOString().split('T')[0];
     } else if (data_inicio && data_fim) {
-      dataInicioStr = data_inicio; dataFimStr = data_fim;
+      dataInicioStr = data_inicio;
+      dataFimStr = data_fim;
     }
 
     let groupBy = "data";
     let selectPeriodo = "data as periodo";
+    
     if (periodo === 'hoje' || periodo === 'ontem') {
       groupBy = "substr(hora, 1, 2)";
       selectPeriodo = "substr(hora, 1, 2) || 'h' as periodo";
     }
 
-    // --- RECEITA (INCLUINDO LUCAS) ---
     const receitaQuery = `
       SELECT ${selectPeriodo}, SUM(COALESCE(preco, 0)) as valor
       FROM (
@@ -75,7 +105,6 @@ router.get('/resumo', async (req, res) => {
     const receitaDetalhadaRaw = await all(receitaQuery, [dataInicioStr, dataFimStr]);
     const receita_detalhada = receitaDetalhadaRaw.map(r => ({ ...r, valor: r.valor / 100 }));
 
-    // --- SERVIÇOS (INCLUINDO LUCAS) ---
     const servicesQuery = `
       SELECT servico as service,
              SUM(CASE WHEN source = 'miguel' THEN 1 ELSE 0 END) as miguel_qty,
@@ -94,7 +123,6 @@ router.get('/resumo', async (req, res) => {
     `;
     const by_service = await all(servicesQuery, [dataInicioStr, dataFimStr]);
 
-    // --- TOP CLIENTES (INCLUINDO LUCAS) ---
     const clientsQuery = `
       SELECT cliente_nome as name, COUNT(*) as visits, SUM(COALESCE(preco, 0)) as spent
       FROM (
@@ -112,7 +140,6 @@ router.get('/resumo', async (req, res) => {
     const top_clients_raw = await all(clientsQuery, [dataInicioStr, dataFimStr]);
     const top_clients = top_clients_raw.map(c => ({ ...c, spent: c.spent / 100 }));
 
-    // --- PAGAMENTOS (INCLUINDO LUCAS) ---
     const paymentsQuery = `
       SELECT forma_pagamento as forma, SUM(COALESCE(preco, 0)) as valor, COUNT(*) as quantidade
       FROM (
@@ -150,7 +177,13 @@ router.get('/resumo', async (req, res) => {
       revenue: p.revenue / 100
     }));
 
-    res.json({ receita_detalhada, by_service, top_clients, by_payment, produtos_vendidos });
+    res.json({
+      receita_detalhada,
+      by_service,
+      top_clients,
+      by_payment,
+      produtos_vendidos
+    });
 
   } catch (error) {
     console.error('Erro ao gerar relatório de resumo:', error);
@@ -160,9 +193,9 @@ router.get('/resumo', async (req, res) => {
 
 router.get('/dashboard', async (req, res) => {
   try {
+    await ensureLucasTableExists();
     const { dataStr: hojeStr, horaStr: agoraHora } = getBrasiliaTime();
 
-    // ADICIONADO: UNION ALL PARA INCLUIR O LUCAS
     const stats = await get(`
       SELECT 
         COUNT(*) as total,
@@ -178,7 +211,6 @@ router.get('/dashboard', async (req, res) => {
       )
     `, [agoraHora, agoraHora, agoraHora, hojeStr, hojeStr, hojeStr]);
 
-    // ADICIONADO: UNION ALL PARA INCLUIR O LUCAS
     const agendamentos = await all(`
       SELECT id, cliente_nome, servico, hora, status, data, 'Miguel' as barber FROM agendamentos WHERE data >= ? AND status NOT IN ('Cancelado', 'Bloqueado')
       UNION ALL
@@ -189,10 +221,10 @@ router.get('/dashboard', async (req, res) => {
     `, [hojeStr, hojeStr, hojeStr]);
 
     res.json({
-      atendimentosHoje: stats.total || 0,
-      receitaDia: (stats.revenue || 0) / 100,
-      servicosRealizados: stats.realized || 0,
-      pendentesFuturos: stats.pending_future || 0,
+      atendimentosHoje: stats?.total || 0,
+      receitaDia: (stats?.revenue || 0) / 100,
+      servicosRealizados: stats?.realized || 0,
+      pendentesFuturos: stats?.pending_future || 0,
       agendamentos,
       agoraHora
     });
