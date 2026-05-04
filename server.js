@@ -60,7 +60,9 @@ app.use('/api/relatorios-lucas', relatoriosLucasRoutes);       // <-- REGISTRO D
 app.use('/api/assinantes', assinantesRoutes);
 app.use('/api/produtos', produtosRoutes);
 app.use('/api/configuracoes', configuracoesRoutes); 
-app.use('/api/servicos', servicosRoutes);           
+app.use('/api/servicos', servicosRoutes);      
+app.use('/api/agendamentos-lucas', agendamentosLucasRoutes);
+app.use('/api/relatorios-lucas', relatoriosLucasRoutes);
 
 // Rota 404 para APIs não encontradas
 app.use('*', (req, res) => {
