@@ -3,58 +3,48 @@ import { all, get, query } from '../database/database.js';
 
 const router = express.Router();
 
-// GET: Listar todos os serviços ativos (TÁTICA BLINDADA: Cria e Popula a tabela se precisar)
-router.get('/', async (req, res) => {
+const limparServicosAntigos = async () => {
   try {
-    // 1. FORÇA A CRIAÇÃO DA TABELA (Ignora os bugs do Docker)
-    await query(`
-      CREATE TABLE IF NOT EXISTS servicos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nome TEXT NOT NULL,
-        preco REAL NOT NULL,
-        status TEXT DEFAULT 'Ativo'
-      )
-    `);
-
-    // 2. VERIFICA SE A TABELA ESTÁ VAZIA. SE ESTIVER, INJETA OS DADOS
-    const countServicos = await get('SELECT COUNT(*) as count FROM servicos');
+    // Garante que a tabela de configurações existe
+    await query(`CREATE TABLE IF NOT EXISTS configuracoes (chave TEXT PRIMARY KEY, valor TEXT NOT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`);
     
-    if (countServicos && countServicos.count === 0) {
-      console.log('Tabela de serviços vazia. Inserindo serviços padrão pela rota...');
+    // Verifica se a limpeza já foi feita antes para não apagar serviços futuros
+    const jaLimpou = await get("SELECT valor FROM configuracoes WHERE chave = 'limpeza_servicos_v2'");
+    
+    if (!jaLimpou) {
+      console.log('Iniciando limpeza da lista antiga de serviços...');
+      await query("DELETE FROM servicos"); // Apaga tudo
       
-      const servicosPadrao = [
-        { nome: 'Barba', preco: 3000 }, { nome: 'Barba + Pézinho', preco: 4000 },
-        { nome: 'Barba + Pigmentação', preco: 5000 }, { nome: 'Barba Express', preco: 2000 },
-        { nome: 'Bigode', preco: 1000 }, { nome: 'Camuflagem (Fios brancos)', preco: 3500 },
-        { nome: 'Cone Hindu', preco: 2500 }, { nome: 'Corte', preco: 4000 },
-        { nome: 'Corte + Pigmentação', preco: 6000 }, { nome: 'Corte 1 pente + barba', preco: 5000 },
-        { nome: 'Corte e Barba', preco: 6000 }, { nome: 'Corte Infantil', preco: 4500 },
-        { nome: 'Corte Máquina 1 pente', preco: 2500 }, { nome: 'Hidratação Capilar', preco: 2500 },
-        { nome: 'Limpeza Nasal', preco: 2500 }, { nome: 'Luzes', preco: 10000 },
-        { nome: 'Luzes e Corte', preco: 14000 }, { nome: 'Navalhado', preco: 3000 },
-        { nome: 'Navalhado + Barba', preco: 5000 }, { nome: 'Pezinho', preco: 1000 },
-        { nome: 'Pigmentação', preco: 2500 }, { nome: 'Platinado', preco: 10000 },
-        { nome: 'Platinado e Corte', preco: 14000 }, { nome: 'Sobrancelha', preco: 1000 },
-        { nome: 'Sobrancelha na fita', preco: 2500 }
+      const servicosOficiais = [
+        { nome: 'Corte', preco: 3500 },
+        { nome: 'Primeiro corte', preco: 4500 },
+        { nome: 'Corte kids', preco: 3500 },
+        { nome: 'Barba', preco: 3500 }
       ];
 
-      for (const servico of servicosPadrao) {
-        await query('INSERT INTO servicos (nome, preco) VALUES (?, ?)', [servico.nome, servico.preco]);
+      for (const s of servicosOficiais) {
+        await query('INSERT INTO servicos (nome, preco, status) VALUES (?, ?, ?)', [s.nome, s.preco, 'Ativo']);
       }
-      console.log('✅ Serviços injetados com sucesso!');
-    }
 
-    // 3. BUSCA E RETORNA OS SERVIÇOS PARA A TELA
+      await query("INSERT INTO configuracoes (chave, valor) VALUES ('limpeza_servicos_v2', 'true')");
+      console.log('✅ Serviços antigos removidos. Apenas os 4 oficiais estão ativos!');
+    }
+  } catch (error) {
+    console.error('Erro ao realizar limpeza única de serviços:', error.message);
+  }
+};
+
+setTimeout(limparServicosAntigos, 2000);
+
+router.get('/', async (req, res) => {
+  try {
     const servicos = await all("SELECT * FROM servicos WHERE status = 'Ativo' ORDER BY nome ASC");
     res.json(servicos);
-    
   } catch (error) {
-    console.error('❌ ERRO ROTA GET /servicos:', error.message);
     res.status(500).json({ error: 'Erro interno ao buscar serviços', detalhe: error.message });
   }
 });
 
-// POST: Criar um novo serviço
 router.post('/', async (req, res) => {
   const { nome, preco } = req.body;
   if (!nome || !preco) return res.status(400).json({ error: 'Nome e preço são obrigatórios' });
@@ -75,7 +65,6 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PUT: Editar um serviço existente
 router.put('/:id', async (req, res) => {
   const { nome, preco } = req.body;
   const { id } = req.params;
@@ -96,7 +85,6 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// DELETE: Excluir um serviço
 router.delete('/:id', async (req, res) => {
   const { id } = req.params;
   try {
