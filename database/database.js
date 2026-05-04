@@ -184,44 +184,53 @@ export const initDatabase = async () => {
     try { await db.exec("ALTER TABLE clientes ADD COLUMN cpf TEXT"); } catch (e) {}
 
     // ==========================================
-    // 1. Inserir usuário Admin
+    // 1. Inserir/Atualizar Admin (Forçando valores)
     // ==========================================
-    const adminUser = process.env.ADMIN_USER || 'barbeariadomineiro';
-    const adminPass = process.env.ADMIN_PASS || 'depaiparafilho2026';
+    const adminUser = 'barbeariadomineiro';
+    const adminPass = 'depaiparafilho2026';
     const existingAdmin = await db.get('SELECT * FROM users WHERE username = ?', adminUser);
+    
     if (!existingAdmin) {
       await db.run('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', adminUser, adminPass, 'admin');
-      console.log('Usuário admin inserido.');
     } else {
-      // Força a atualização caso a senha ou a role estejam desatualizadas
       await db.run('UPDATE users SET password = ?, role = ? WHERE username = ?', adminPass, 'admin', adminUser);
     }
 
     // ==========================================
-    // 2. Inserir usuário Gabriel
+    // 2. Inserir/Atualizar Gabriel
     // ==========================================
     const gabrielUser = 'gabriel';
-    const gabrielPass = 'gabrielbarber2026';
+    const gabrielPass = 'gabrielbarber2026'; // Conforme você ajustou
     const existingGabriel = await db.get('SELECT * FROM users WHERE username = ?', gabrielUser);
+    
     if (!existingGabriel) {
       await db.run('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', gabrielUser, gabrielPass, 'jhonatas');
-      console.log('Usuário Gabriel inserido.');
     } else {
       await db.run('UPDATE users SET password = ?, role = ? WHERE username = ?', gabrielPass, 'jhonatas', gabrielUser);
     }
 
     // ==========================================
-    // 3. Inserir usuário Lucas
+    // 3. Inserir/Atualizar Lucas
     // ==========================================
     const lucasUser = 'lucas';
-    const lucasPass = 'lucasbarber2026';
+    const lucasPass = 'lucasbarber2026'; // Conforme você ajustou
     const existingLucas = await db.get('SELECT * FROM users WHERE username = ?', lucasUser);
+    
     if (!existingLucas) {
       await db.run('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', lucasUser, lucasPass, 'lucas');
-      console.log('Usuário Lucas inserido.');
     } else {
       await db.run('UPDATE users SET password = ?, role = ? WHERE username = ?', lucasPass, 'lucas', lucasUser);
     }
+
+    // ==========================================
+    // 🕵️ HACK DE DEPURAÇÃO (Para você ver no Easypanel)
+    // ==========================================
+    console.log('--- ATENÇÃO: USUÁRIOS CADASTRADOS NO BANCO ---');
+    const todosUsuarios = await db.all("SELECT id, username, password, role FROM users");
+    console.table(todosUsuarios);
+    console.log('----------------------------------------------');
+
+    console.log('Banco de dados SQLite inicializado com sucesso!');
 
     console.log('Banco de dados SQLite inicializado com sucesso!');
   } catch (error) {
