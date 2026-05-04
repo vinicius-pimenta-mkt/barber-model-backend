@@ -4,71 +4,41 @@ import { verifyToken } from './auth.js';
 
 const router = express.Router();
 
-// Auto-cria as tabelas no Banco de Dados se não existirem
-const initDb = async () => {
+const limparProdutosAntigos = async () => {
   try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS produtos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nome TEXT NOT NULL,
-        preco INTEGER NOT NULL,
-        estoque INTEGER DEFAULT 0
-      )
-    `);
-    await query(`
-      CREATE TABLE IF NOT EXISTS produtos_historico (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        produto_id INTEGER,
-        tipo TEXT,
-        quantidade INTEGER,
-        valor_total INTEGER,
-        forma_pagamento TEXT,
-        data TEXT,
-        hora TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY(produto_id) REFERENCES produtos(id)
-      )
-    `);
+    await query(`CREATE TABLE IF NOT EXISTS produtos (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, preco INTEGER NOT NULL, estoque INTEGER DEFAULT 0)`);
+    await query(`CREATE TABLE IF NOT EXISTS produtos_historico (id INTEGER PRIMARY KEY AUTOINCREMENT, produto_id INTEGER, tipo TEXT, quantidade INTEGER, valor_total INTEGER, forma_pagamento TEXT, data TEXT, hora TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(produto_id) REFERENCES produtos(id))`);
+    try { await query(`ALTER TABLE produtos_historico ADD COLUMN hora TEXT`); } catch (e) {}
 
-    // --- VACINA DE ATUALIZAÇÃO DO BANCO ANTIGO ---
-    // Tenta forçar a adição da coluna 'hora' na tabela antiga. 
-    // Se a coluna já existir, ele dá erro e o 'catch' ignora em silêncio.
-    try {
-      await query(`ALTER TABLE produtos_historico ADD COLUMN hora TEXT`);
-      console.log("✅ Coluna 'hora' injetada com sucesso no banco antigo!");
-    } catch (e) {}
-    // --------------------------------------------
-
-    // AUTO-POPULAÇÃO DE PRODUTOS
-    const countRes = await get('SELECT COUNT(*) as count FROM produtos');
-    if (countRes && countRes.count === 0) {
-      console.log("Tabela vazia detectada. Injetando lista de produtos padrão...");
-      const produtosIniciais = [
-        { nome: 'Balm para barba', preco: 4500 },
-        { nome: 'Cera Modeladora Efeito Matte', preco: 3500 },
-        { nome: 'Gel cola', preco: 3000 },
-        { nome: 'Leave-in', preco: 4500 },
-        { nome: 'Loção pós barba', preco: 4000 },
-        { nome: 'Óleo para barba', preco: 4500 },
-        { nome: 'Pomada Modeladora (Laranja)', preco: 3000 },
-        { nome: 'Pomada Modeladora Efeito seco (amarelo)', preco: 3000 },
-        { nome: 'Pomada Modeladora em Pó', preco: 4000 },
-        { nome: 'Pomada Modeladora Extra Forte (Azul)', preco: 3000 },
-        { nome: 'Shampoo Anti-Caspa', preco: 4000 },
-        { nome: 'Shampoo para Barba', preco: 2500 }
+    const jaLimpou = await get("SELECT valor FROM configuracoes WHERE chave = 'limpeza_produtos_v2'");
+    
+    if (!jaLimpou) {
+      console.log('Iniciando limpeza da lista antiga de produtos...');
+      
+      // Remove histórico antigo para evitar erro de chave estrangeira
+      await query("DELETE FROM produtos_historico");
+      await query("DELETE FROM produtos");
+      
+      const novosProdutos = [
+        { nome: 'Pomada', preco: 3000 },
+        { nome: 'Shampoo', preco: 3000 },
+        { nome: 'Minoxidiu', preco: 2500 },
+        { nome: 'Óleo de barba', preco: 3000 }
       ];
-
-      for (const p of produtosIniciais) {
+      
+      for (const p of novosProdutos) {
         await query('INSERT INTO produtos (nome, preco, estoque) VALUES (?, ?, ?)', [p.nome, p.preco, 10]);
       }
-      console.log("✅ 12 produtos inseridos com sucesso com 10 unidades cada!");
+
+      await query("INSERT INTO configuracoes (chave, valor) VALUES ('limpeza_produtos_v2', 'true')");
+      console.log("✅ Produtos antigos removidos. Apenas os 4 oficiais estão ativos com 10 unid!");
     }
   } catch (error) {
-    console.error('Erro ao criar tabelas de produtos:', error);
+    console.error('Erro ao limpar/inicializar tabela de produtos:', error.message);
   }
 };
 
-setTimeout(initDb, 2000);
+setTimeout(limparProdutosAntigos, 2500);
 
 // Listar todos os produtos
 router.get('/', verifyToken, async (req, res) => {
@@ -95,13 +65,12 @@ router.post('/', verifyToken, async (req, res) => {
   }
 });
 
-// Movimentar (Comprar ou Vender) - TOTALMENTE BLINDADO
+// Movimentar (Comprar ou Vender)
 router.post('/:id/movimentar', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { tipo, quantidade, forma_pagamento } = req.body;
     
-    // Força conversão para número para evitar erros no banco
     const produtoId = parseInt(id);
     const qtd = parseInt(quantidade);
     
@@ -115,7 +84,6 @@ router.post('/:id/movimentar', verifyToken, async (req, res) => {
     const novoEstoque = tipo === 'venda' ? produto.estoque - qtd : produto.estoque + qtd;
     const valorTotal = Math.round(qtd * produto.preco);
     
-    // Data e Hora "à prova de falhas" (não depende da tradução do Linux)
     const agora = new Date();
     const utc = agora.getTime() + (agora.getTimezoneOffset() * 60000);
     const br = new Date(utc + (3600000 * -3));
@@ -131,13 +99,12 @@ router.post('/:id/movimentar', verifyToken, async (req, res) => {
 
     res.json({ message: 'Estoque atualizado com sucesso', novoEstoque });
   } catch (error) {
-    console.error('ERRO CRÍTICO AO MOVIMENTAR ESTOQUE:', error);
-    // Agora o erro exato do banco vai aparecer no alerta da sua tela!
+    console.error('ERRO AO MOVIMENTAR ESTOQUE:', error);
     res.status(500).json({ error: `Erro no servidor: ${error.message}` });
   }
 });
 
-// Atualizar produto (Nome e Preço)
+// Atualizar produto
 router.put('/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
