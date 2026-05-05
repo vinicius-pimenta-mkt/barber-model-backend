@@ -19,7 +19,7 @@ const limparServicosAntigos = async () => {
         { nome: 'Primeiro corte', preco: 4500 },
         { nome: 'Corte kids', preco: 3500 },
         { nome: 'Barba', preco: 3500 },
-        { nome: 'Corte e Barba', preco: 6000 } // Novo serviço adicionado
+        { nome: 'Corte e Barba', preco: 7000 } // Novo serviço adicionado
       ];
 
       for (const s of servicosOficiais) {
