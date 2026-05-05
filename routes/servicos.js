@@ -5,32 +5,32 @@ const router = express.Router();
 
 const limparServicosAntigos = async () => {
   try {
-    // Garante que a tabela de configurações existe
     await query(`CREATE TABLE IF NOT EXISTS configuracoes (chave TEXT PRIMARY KEY, valor TEXT NOT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`);
     
-    // Verifica se a limpeza já foi feita antes para não apagar serviços futuros
-    const jaLimpou = await get("SELECT valor FROM configuracoes WHERE chave = 'limpeza_servicos_v2'");
+    // Atualizado para a versão v3 para incluir "Corte e Barba"
+    const jaLimpou = await get("SELECT valor FROM configuracoes WHERE chave = 'limpeza_servicos_v3'");
     
     if (!jaLimpou) {
-      console.log('Iniciando limpeza da lista antiga de serviços...');
-      await query("DELETE FROM servicos"); // Apaga tudo
+      console.log('Limpando e atualizando lista oficial de serviços...');
+      await query("DELETE FROM servicos");
       
       const servicosOficiais = [
         { nome: 'Corte', preco: 3500 },
         { nome: 'Primeiro corte', preco: 4500 },
         { nome: 'Corte kids', preco: 3500 },
-        { nome: 'Barba', preco: 3500 }
+        { nome: 'Barba', preco: 3500 },
+        { nome: 'Corte e Barba', preco: 6000 } // Novo serviço adicionado
       ];
 
       for (const s of servicosOficiais) {
         await query('INSERT INTO servicos (nome, preco, status) VALUES (?, ?, ?)', [s.nome, s.preco, 'Ativo']);
       }
 
-      await query("INSERT INTO configuracoes (chave, valor) VALUES ('limpeza_servicos_v2', 'true')");
-      console.log('✅ Serviços antigos removidos. Apenas os 4 oficiais estão ativos!');
+      await query("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('limpeza_servicos_v3', 'true')");
+      console.log('✅ Lista de serviços atualizada com "Corte e Barba" (1h)!');
     }
   } catch (error) {
-    console.error('Erro ao realizar limpeza única de serviços:', error.message);
+    console.error('Erro na limpeza de serviços:', error.message);
   }
 };
 
