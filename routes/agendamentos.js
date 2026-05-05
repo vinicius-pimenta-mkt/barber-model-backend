@@ -57,15 +57,11 @@ const isDiaFechado = (dataStr) => {
 };
 
 const DURACOES_SERVICOS = {
-  'Barba': 20, 'Barba + Pézinho': 30, 'Barba + Pigmentação': 30,
-  'Barba Express': 20, 'Bigode': 10, 'Camuflagem (Fios brancos)': 20,
-  'Combo Corte + Barba + Sobrancelha': 60,
-  'Cone Hindu': 20, 'Corte': 30, 'Corte + Pigmentação': 40,
-  'Corte 1 pente + barba': 40, 'Corte e Barba': 50, 'Corte Infantil': 30,
-  'Corte Máquina 1 pente': 20, 'Hidratação Capilar': 10, 'Limpeza Nasal': 10,
-  'Luzes': 120, 'Luzes e Corte': 150, 'Navalhado': 20, 'Navalhado + Barba': 40,
-  'Pezinho': 10, 'Pigmentação': 20, 'Platinado': 120, 'Platinado e Corte': 150,
-  'Sobrancelha': 10, 'Sobrancelha na fita': 30
+  'Corte': 30,
+  'Barba': 30,
+  'Corte kids': 30,
+  'Primeiro corte': 30,
+  'Corte e Barba': 60 // Configurado para 1 hora (60 minutos)
 };
 
 router.get('/', verifyToken, async (req, res) => {
