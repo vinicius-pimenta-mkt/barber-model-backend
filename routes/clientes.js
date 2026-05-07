@@ -35,19 +35,19 @@ router.get('/:id', verifyToken, async (req, res) => {
 // Criar novo cliente
 router.post('/', verifyToken, async (req, res) => {
   try {
-    const { nome, telefone, email } = req.body;
+    const { nome, telefone, email, data_aniversario } = req.body;
 
     if (!nome) {
       return res.status(400).json({ error: 'Nome é obrigatório' });
     }
 
     const result = await query(
-      'INSERT INTO clientes (nome, telefone, email) VALUES (?, ?, ?)',
-      [nome, telefone, email]
+      'INSERT INTO clientes (nome, telefone, email, data_aniversario) VALUES (?, ?, ?, ?)',
+      [nome, telefone, email, data_aniversario || null]
     );
     
-    res.status(201).json({
-      id: result.lastID,
+    res.status(201).json({ 
+      id: result.lastID, 
       message: 'Cliente criado com sucesso'
     });
   } catch (error) {
@@ -60,15 +60,15 @@ router.post('/', verifyToken, async (req, res) => {
 router.put('/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { nome, telefone, email } = req.body;
+    const { nome, telefone, email, data_aniversario } = req.body;
 
     if (!nome) {
       return res.status(400).json({ error: 'Nome é obrigatório' });
     }
 
     const result = await query(
-      'UPDATE clientes SET nome = ?, telefone = ?, email = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [nome, telefone, email, id]
+      'UPDATE clientes SET nome = ?, telefone = ?, email = ?, data_aniversario = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [nome, telefone, email, data_aniversario || null, id]
     );
     
     if (result.changes === 0) {
@@ -100,4 +100,3 @@ router.delete('/:id', verifyToken, async (req, res) => {
 });
 
 export default router;
-
