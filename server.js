@@ -75,6 +75,18 @@ const startServer = async () => {
     await initDatabase();
 
     // ====================================================================
+    // 💉 VACINA DE ESTRUTURA: FORÇAR CRIAÇÃO DA COLUNA DE ANIVERSÁRIO
+    // ====================================================================
+    console.log('🛠️ Verificando e forçando estrutura de aniversário...');
+    try {
+      // Tenta adicionar a coluna. Se já existir, o SQLite dará erro e cairá no catch com segurança.
+      await query("ALTER TABLE clientes ADD COLUMN data_aniversario TEXT");
+      console.log("✅ SUCESSO: Coluna 'data_aniversario' injetada na tabela clientes!");
+    } catch (e) {
+      console.log("ℹ️ Info: Estrutura de aniversário validada (coluna já existe).");
+    }
+
+    // ====================================================================
     // INJEÇÃO FORÇADA DE USUÁRIOS (Roda por fora da pasta protegida)
     // ====================================================================
     console.log('🛠️ Verificando e forçando atualização de acessos...');
