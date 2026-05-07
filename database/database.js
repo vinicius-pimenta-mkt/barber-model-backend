@@ -38,6 +38,7 @@ export const initDatabase = async () => {
         telefone TEXT,
         email TEXT,
         cpf TEXT,
+        data_aniversario TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
@@ -182,6 +183,7 @@ export const initDatabase = async () => {
     try { await db.exec("ALTER TABLE assinantes ADD COLUMN cpf TEXT"); } catch (e) {}
     try { await db.exec("ALTER TABLE assinantes ADD COLUMN telefone TEXT"); } catch (e) {}
     try { await db.exec("ALTER TABLE clientes ADD COLUMN cpf TEXT"); } catch (e) {}
+    try { await db.exec("ALTER TABLE clientes ADD COLUMN data_aniversario TEXT"); } catch (e) {}
 
     // ==========================================
     // 1. Inserir/Atualizar Admin (Forçando valores)
