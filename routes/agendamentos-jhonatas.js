@@ -196,7 +196,7 @@ function getBrasiliaTime() {
 
 router.post('/', async (req, res) => {
   try {
-    const { cliente_nome, cliente_telefone, servico, data, hora, status = 'Confirmado', preco, forma_pagamento, observacoes, cliente_id } = req.body;
+    const { cliente_nome, cliente_telefone, servico, data, hora, status = 'Confirmado', preco, forma_pagamento, observacoes, cliente_id, data_aniversario } = req.body;
 
     if (!cliente_nome || !servico || !data || !hora) {
       return res.status(400).json({ error: 'Dados obrigatórios faltando' });
@@ -228,6 +228,34 @@ router.post('/', async (req, res) => {
       [safeClienteId, cliente_nome, telefoneLimpo, servicoLimpo, data, horaFormatada, status, precoLimpo, pagamentoLimpo, observacoes]
     );
 
+    // ============================================================
+    // 🚀 BLOCO DE AUTO-CADASTRO / ATUALIZAÇÃO DE CLIENTE
+    // ============================================================
+    try {
+      const telLimpo = telefoneLimpo;
+      
+      const clienteExistente = await get(
+        'SELECT id FROM clientes WHERE (telefone = ? AND telefone IS NOT NULL) OR nome = ?', 
+        [telLimpo, cliente_nome]
+      );
+
+      if (!clienteExistente) {
+        await query(
+          'INSERT INTO clientes (nome, telefone, data_aniversario) VALUES (?, ?, ?)',
+          [cliente_nome, telLimpo, data_aniversario || null]
+        );
+        console.log(`✅ Novo cliente criado automaticamente: ${cliente_nome}`);
+      } else if (data_aniversario) {
+        await query(
+          'UPDATE clientes SET data_aniversario = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+          [data_aniversario, clienteExistente.id]
+        );
+      }
+    } catch (err) {
+      console.error("Erro ao processar auto-cadastro de cliente:", err.message);
+    }
+    // ============================================================
+    
     if (status === 'Confirmado') {
       try {
         const dataVisita = `${data.split('-').reverse().join('/')} ${horaFormatada}`;
