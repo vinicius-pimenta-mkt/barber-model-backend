@@ -172,18 +172,29 @@ export const initDatabase = async () => {
       )
     `);
 
-    // Migrações de segurança
-    try { await db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'admin'"); } catch (e) {}
-    try { await db.exec("ALTER TABLE agendamentos ADD COLUMN forma_pagamento TEXT"); } catch (e) {}
-    try { await db.exec("ALTER TABLE agendamentos_jhonatas ADD COLUMN forma_pagamento TEXT"); } catch (e) {}
-    try { await db.exec("ALTER TABLE agendamentos_lucas ADD COLUMN forma_pagamento TEXT"); } catch (e) {}
-    try { await db.exec("ALTER TABLE agendamentos ADD COLUMN cliente_telefone TEXT"); } catch (e) {}
-    try { await db.exec("ALTER TABLE agendamentos_jhonatas ADD COLUMN cliente_telefone TEXT"); } catch (e) {}
-    try { await db.exec("ALTER TABLE agendamentos_lucas ADD COLUMN cliente_telefone TEXT"); } catch (e) {}
-    try { await db.exec("ALTER TABLE assinantes ADD COLUMN cpf TEXT"); } catch (e) {}
-    try { await db.exec("ALTER TABLE assinantes ADD COLUMN telefone TEXT"); } catch (e) {}
-    try { await db.exec("ALTER TABLE clientes ADD COLUMN cpf TEXT"); } catch (e) {}
-    try { await db.exec("ALTER TABLE clientes ADD COLUMN data_aniversario TEXT"); } catch (e) {}
+    // ==========================================
+    // Módulo Inteligente de Migrações
+    // ==========================================
+    const adicionarColunaSeNaoExistir = async (tabela, coluna, tipo) => {
+      try {
+        await db.exec(`ALTER TABLE ${tabela} ADD COLUMN ${coluna} ${tipo}`);
+        console.log(`✅ Sucesso: Coluna '${coluna}' injetada na tabela '${tabela}'!`);
+      } catch (e) {
+        // Se der erro, é porque a coluna já existe. Fica silencioso para não poluir.
+      }
+    };
+
+    await adicionarColunaSeNaoExistir('users', 'role', "TEXT DEFAULT 'admin'");
+    await adicionarColunaSeNaoExistir('agendamentos', 'forma_pagamento', 'TEXT');
+    await adicionarColunaSeNaoExistir('agendamentos_jhonatas', 'forma_pagamento', 'TEXT');
+    await adicionarColunaSeNaoExistir('agendamentos_lucas', 'forma_pagamento', 'TEXT');
+    await adicionarColunaSeNaoExistir('agendamentos', 'cliente_telefone', 'TEXT');
+    await adicionarColunaSeNaoExistir('agendamentos_jhonatas', 'cliente_telefone', 'TEXT');
+    await adicionarColunaSeNaoExistir('agendamentos_lucas', 'cliente_telefone', 'TEXT');
+    await adicionarColunaSeNaoExistir('assinantes', 'cpf', 'TEXT');
+    await adicionarColunaSeNaoExistir('assinantes', 'telefone', 'TEXT');
+    await adicionarColunaSeNaoExistir('clientes', 'cpf', 'TEXT');
+    await adicionarColunaSeNaoExistir('clientes', 'data_aniversario', 'TEXT');
 
     // ==========================================
     // 1. Inserir/Atualizar Admin (Forçando valores)
@@ -202,7 +213,7 @@ export const initDatabase = async () => {
     // 2. Inserir/Atualizar Gabriel
     // ==========================================
     const gabrielUser = 'gabriel';
-    const gabrielPass = 'gabrielbarber2026'; // Conforme você ajustou
+    const gabrielPass = 'gabrielbarber2026'; 
     const existingGabriel = await db.get('SELECT * FROM users WHERE username = ?', gabrielUser);
     
     if (!existingGabriel) {
@@ -215,7 +226,7 @@ export const initDatabase = async () => {
     // 3. Inserir/Atualizar Lucas
     // ==========================================
     const lucasUser = 'lucas';
-    const lucasPass = 'lucasbarber2026'; // Conforme você ajustou
+    const lucasPass = 'lucasbarber2026'; 
     const existingLucas = await db.get('SELECT * FROM users WHERE username = ?', lucasUser);
     
     if (!existingLucas) {
@@ -231,8 +242,6 @@ export const initDatabase = async () => {
     const todosUsuarios = await db.all("SELECT id, username, password, role FROM users");
     console.table(todosUsuarios);
     console.log('----------------------------------------------');
-
-    console.log('Banco de dados SQLite inicializado com sucesso!');
 
     console.log('Banco de dados SQLite inicializado com sucesso!');
   } catch (error) {
